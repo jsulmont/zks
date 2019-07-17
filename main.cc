@@ -1,5 +1,5 @@
 #include <iostream>
-#include "avalanche.h"
+#include "avalanche.hpp"
 
 int main()
 {
