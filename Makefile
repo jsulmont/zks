@@ -2,10 +2,13 @@ CXX = clang++
 CXXFLAGS = -std=c++17 -g
 all: zks.exe
 
-zks.exe: main.o
-	$(CXX) -o zks.exe main.o
+zks.exe: main.o avalanche.o
+	$(CXX) -o zks.exe main.o avalanche.o
 
-main.o: main.cc avalanche.h parameters.h
+avalanche.o: avalanche.cpp avalanche.hpp parameters.hpp
+	$(CXX) $(CXXFLAGS) -c avalanche.cpp
+
+main.o: main.cc avalanche.hpp parameters.hpp
 	$(CXX) $(CXXFLAGS) -c main.cc
 
 clean:
