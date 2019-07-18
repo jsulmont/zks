@@ -110,7 +110,7 @@ public:
     Tx create_tx(int);
     void receive_tx(Node &, Tx &);
     Tx send_tx(UUID &);
-    int query(Node &, Tx &);
+    int query(Node &,  Tx &);
     void avalanche_loop();
     std::list<Tx> parent_selection();
 

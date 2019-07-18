@@ -21,7 +21,6 @@ void Node::receive_tx(Node &sender, Tx &tx)
         return;
     tx.chit = 0;
     tx.confidence = 0;
-
     for (auto &it : tx.parents)
         if (transactions.find(it) == transactions.end())
         {
@@ -32,16 +31,15 @@ void Node::receive_tx(Node &sender, Tx &tx)
     if (c != conflicts.end())
         c->second.size++;
     else
-    {
-    }
-    // conflicts[tx.data] = ConflictSet{tx, tx, 0, 1};
-
-    transactions[tx.id] = tx;
+        conflicts.insert(make_pair(tx.data, ConflictSet{tx, tx, 0, 1}));
+    transactions.insert(make_pair(tx.id, tx));
 }
 
 Tx Node::send_tx(UUID &id)
 {
-    return transactions[id];
+    auto it = transactions.find(id);
+    assert(it != transactions.end());
+    return it->second;
 }
 
 int Node::query(Node &sender, Tx &tx)
@@ -52,10 +50,34 @@ int Node::query(Node &sender, Tx &tx)
 
 void Node::avalanche_loop()
 {
+    for (auto &[id, tx] : transactions)
+    {
+        if (queried.find(id) == queried.end())
+            continue;
+        vector<shared_ptr<Node>> sample;
+        sample.resize(params.k);
+        {
+            auto tmp{network->nodes};
+            remove_if(tmp.begin(), tmp.end(), [this](auto &it) { return it.get() == this; });
+            shuffle(tmp.begin(), tmp.end(), network->rng);
+            copy_n(tmp.begin(), params.k, sample.begin());
+        }
+        int res = 0;
+        for (auto &n : sample)
+        {
+            auto x = tx; // TODO:
+            res += n->query(*this, x);
+        }
+        if (res >= params.alpha * params.k)
+        {
+            tx.chit = 1;
+            auto ps = parent_set(tx);
+        }
+        queried.insert(it.second.id);
+    }
 }
 
-std::set<Tx>
-Node::parent_set(Tx tx)
+std::set<Tx> Node::parent_set(Tx tx)
 {
     auto it = parent_sets.find(tx.id);
     if (it != parent_sets.end())
@@ -137,7 +159,8 @@ Node::parent_selection()
         {
             eps0.push_back(tx.second);
             auto c = conflicts.find(tx.second.data);
-            if (c != conflicts.end() && (c->second.size == 1 || tx.second.confidence > 0))
+            assert(c != conflicts.end());
+            if (c->second.size == 1 || tx.second.confidence > 0)
                 eps1.insert(tx.second);
         }
     list<Tx> parents;
@@ -170,7 +193,8 @@ Node::parent_selection()
                     if (is_accepted(e))
                         continue;
                     auto it = conflicts.find(e.data);
-                    if (it != conflicts.end() && it->second.size == 1)
+                    assert(it != conflicts.end());
+                    if (it->second.size == 1)
                         rc2.push_back(std::move(e));
                 }
                 shuffle(rc2.begin(), rc2.end(), network->rng);
