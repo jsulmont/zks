@@ -70,6 +70,11 @@ struct Tx
         return *this;
     }
 
+    bool operator!=(Tx const &tx) const
+    {
+        return id != tx.id;
+    }
+
     friend std::ostream &operator<<(std::ostream &out, Tx const &tx)
     {
         out << "T(id=" << boost::uuids::to_string(tx.id).substr(0, 5) << ", data=" << tx.data
@@ -110,7 +115,7 @@ public:
     Tx create_tx(int);
     void receive_tx(Node &, Tx &);
     Tx send_tx(UUID &);
-    int query(Node &,  Tx &);
+    int query(Node &, Tx &);
     void avalanche_loop();
     std::list<Tx> parent_selection();
 
@@ -120,6 +125,8 @@ public:
                   << std::hex << network << std::dec
                   << " genesis=" << tx_genesis << std::endl;
     }
+
+    double fraction_accepted();
 
 private:
     std::set<Tx> parent_set(Tx);

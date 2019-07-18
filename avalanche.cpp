@@ -50,8 +50,11 @@ int Node::query(Node &sender, Tx &tx)
 
 void Node::avalanche_loop()
 {
-    for (auto &[id, tx] : transactions)
+    for (auto it = transactions.begin(); it != transactions.end(); ++it)
     {
+        // special with tsl, can't use for range
+        auto &id = it->first;
+        auto &tx = it.value();
         if (queried.find(id) == queried.end())
             continue;
         vector<shared_ptr<Node>> sample;
@@ -72,8 +75,22 @@ void Node::avalanche_loop()
         {
             tx.chit = 1;
             auto ps = parent_set(tx);
+            for (auto &ptx : ps)
+            {
+                auto cs = conflicts.find(ptx.data);
+                assert(cs != conflicts.end());
+                if (ptx.confidence > cs->second.pref.confidence)
+                    cs->second.pref = ptx;
+                if (ptx != cs->second.last)
+                {
+                    cs->second.last = ptx;
+                    cs->second.count = 0;
+                }
+                else
+                    cs->second.count++;
+            }
         }
-        queried.insert(it.second.id);
+        queried.insert(id);
     }
 }
 
@@ -205,4 +222,14 @@ Node::parent_selection()
     if (!parents.empty())
         return parents;
     return fallback;
+}
+
+double Node::fraction_accepted()
+{
+    int rc{0};
+    for (auto it = transactions.begin(); it != transactions.end(); ++it)
+        if (is_accepted(it->second))
+            rc++;
+
+    return double(rc) / transactions.size();
 }
