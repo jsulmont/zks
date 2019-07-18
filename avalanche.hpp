@@ -110,6 +110,11 @@ public:
          Network *network, Tx &genesis)
         : node_id(id), params(params), network(network), tx_genesis(genesis)
     {
+        transactions.insert({tx_genesis.id, tx_genesis});
+        queried.insert(tx_genesis.id);
+        conflicts.insert({tx_genesis.data, ConflictSet{tx_genesis, tx_genesis, 0, 1}});
+        accepted.insert(tx_genesis.id);
+        parent_sets.insert({tx_genesis.id, {}});
     }
 
     Tx create_tx(int);

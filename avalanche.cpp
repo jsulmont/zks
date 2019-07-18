@@ -199,11 +199,9 @@ Node::parent_selection()
             {
                 // TODO: use std::range when available
                 list<Tx> rc; // take 10
-                auto it = transactions.rbegin(), end = it;
-                advance(end, 10);
-                for (; it != end; ++it)
+                int n{10};
+                for (auto it = transactions.rbegin(); it < transactions.rend() && n > 0; ++it, --n)
                     rc.push_back(it->second);
-                // for_each_n(transactions.rbegin(), 10, [rc](auto &e) { rc.push_back(e); });
                 vector<Tx> rc2;
                 for (auto &e : rc)
                 {
@@ -215,7 +213,7 @@ Node::parent_selection()
                         rc2.push_back(std::move(e));
                 }
                 shuffle(rc2.begin(), rc2.end(), network->rng);
-                return list<Tx>(rc2.begin(), rc2.begin() + 3);
+                return list<Tx>(rc2.begin(), rc2.begin() + (rc2.size() > 3 ? 3 : rc2.size()));
             }
         }()};
     assert(!(parents.empty() && fallback.empty()));
