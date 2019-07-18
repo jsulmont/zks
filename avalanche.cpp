@@ -14,19 +14,45 @@ Tx Node::create_tx(int data)
     return t;
 }
 
-void Node::receive_tx(Node &node, Tx tx)
+void Node::receive_tx(Node &sender, Tx &tx)
 {
+    auto it = transactions.find(tx.id);
+    if (it != transactions.end())
+        return;
+    tx.chit = 0;
+    tx.confidence = 0;
+
+    for (auto &it : tx.parents)
+        if (transactions.find(it) == transactions.end())
+        {
+            auto t = sender.send_tx(it);
+            receive_tx(sender, t); // recursive
+        }
+    auto c = conflicts.find(tx.data);
+    if (c != conflicts.end())
+        c->second.size++;
+    else
+    {
+    }
+    // conflicts[tx.data] = ConflictSet{tx, tx, 0, 1};
+
+    transactions[tx.id] = tx;
 }
 
-// template <typename InIter, typename OutIter, typename FN>
-// void flat_map(InIter begin, InIter end, OutIter out, FN fn)
-// {
-//     for (; begin != end; ++begin)
-//     {
-//         auto y = fn(*begin);
-//         std::copy(std::begin(y), std::end(y), out);
-//     }
-// }
+Tx Node::send_tx(UUID &id)
+{
+    return transactions[id];
+}
+
+int Node::query(Node &sender, Tx &tx)
+{
+    receive_tx(sender, tx);
+    return is_strongly_prefered(tx) ? 1 : 0;
+}
+
+void Node::avalanche_loop()
+{
+}
 
 std::set<Tx>
 Node::parent_set(Tx tx)
@@ -38,7 +64,7 @@ Node::parent_set(Tx tx)
     set<UUID> ps(tx.parents.begin(), tx.parents.end());
     while (!ps.empty())
     {
-        for (auto it : ps)
+        for (auto &it : ps)
         {
             auto x = transactions.find(it);
             if (x != transactions.end())
@@ -71,7 +97,7 @@ bool Node::is_prefered(Tx tx)
 
 bool Node::is_strongly_prefered(Tx tx)
 {
-    for (auto it : parent_set(tx))
+    for (auto &it : parent_set(tx))
         if (!is_prefered(tx))
             return false;
     return true;
@@ -106,7 +132,7 @@ Node::parent_selection()
 {
     list<Tx> eps0;
     set<Tx> eps1;
-    for (auto tx : transactions)
+    for (auto &tx : transactions)
         if (is_strongly_prefered(tx.second))
         {
             eps0.push_back(tx.second);
@@ -117,10 +143,10 @@ Node::parent_selection()
     list<Tx> parents;
     {
         auto out = parents.begin();
-        for (auto it : eps1)
+        for (auto &it : eps1)
         {
             auto p = parent_set(it);
-            for (auto jt : p)
+            for (auto &jt : p)
                 if (eps1.find(jt) == eps1.end())
                     parents.push_back(jt);
         }
@@ -128,25 +154,31 @@ Node::parent_selection()
     list<Tx> fallback{
         [this]() -> list<Tx> {
             if (transactions.size() == 1)
-                return {genesis_tx};
+                return {tx_genesis};
             else
             {
+                // TODO: use std::range when available
                 list<Tx> rc; // take 10
-                auto it = transactions.rbegin();
-                auto end = it;
+                auto it = transactions.rbegin(), end = it;
                 advance(end, 10);
                 for (; it != end; ++it)
                     rc.push_back(it->second);
-                vector<Tx> rc2; // filter
-                for (auto it : rc)
+                // for_each_n(transactions.rbegin(), 10, [rc](auto &e) { rc.push_back(e); });
+                vector<Tx> rc2;
+                for (auto &e : rc)
                 {
-                    auto c = conflicts.find(it.data);
-                    if (!is_accepted(it) && c != conflicts.end() && c->second.size == 1)
-                        rc2.push_back(it);
+                    if (is_accepted(e))
+                        continue;
+                    auto it = conflicts.find(e.data);
+                    if (it != conflicts.end() && it->second.size == 1)
+                        rc2.push_back(std::move(e));
                 }
                 shuffle(rc2.begin(), rc2.end(), network->rng);
                 return list<Tx>(rc2.begin(), rc2.begin() + 3);
             }
         }()};
-    return {};
+    assert(!(parents.empty() && fallback.empty()));
+    if (!parents.empty())
+        return parents;
+    return fallback;
 }

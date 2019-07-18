@@ -103,24 +103,22 @@ class Node
 public:
     Node(int id, Parameters const &params,
          Network *network, Tx &genesis)
-        : node_id(id), params(params), network(network), genesis_tx(genesis)
+        : node_id(id), params(params), network(network), tx_genesis(genesis)
     {
     }
 
-    std::list<Tx> parent_selection();
-
-    // create a new transaction on.
-    // for the sake of simulation, will call
-    // receive transaction on that same node.
     Tx create_tx(int);
-
-    void receive_tx(Node &, Tx);
+    void receive_tx(Node &, Tx &);
+    Tx send_tx(UUID &);
+    int query(Node &, Tx &);
+    void avalanche_loop();
+    std::list<Tx> parent_selection();
 
     virtual void protocol_loop()
     {
         std::cout << "Node(" << node_id << ") network=0x"
                   << std::hex << network << std::dec
-                  << " genesis=" << genesis_tx << std::endl;
+                  << " genesis=" << tx_genesis << std::endl;
     }
 
 private:
@@ -132,7 +130,7 @@ private:
     int node_id;
     Parameters params;
     Network *network;
-    Tx genesis_tx;
+    Tx tx_genesis;
     tsl::ordered_map<UUID, Tx, boost::hash<UUID>> transactions;
     std::set<UUID> queried, accepted;
     std::map<int, ConflictSet> conflicts;
@@ -143,10 +141,10 @@ class Network
 {
 public:
     Network(Parameters const &params)
-        : params(params), rng(params.seed), tx(-1, {}, 1)
+        : params(params), rng(params.seed), tx_genesis(-1, {}, 1)
     {
         for (auto i = 0; i <= params.num_nodes; i++)
-            nodes.push_back(std::make_shared<Node>(Node(i, params, this, tx)));
+            nodes.push_back(std::make_shared<Node>(Node(i, params, this, tx_genesis)));
     }
 
     void run()
@@ -158,7 +156,7 @@ public:
     // private:
     Parameters params;
     std::mt19937_64 rng;
-    Tx tx; // genesis tx
+    Tx tx_genesis; // genesis tx
     std::vector<std::shared_ptr<Node>> nodes;
     Network(Network const &) = delete;
     Network &operator=(Network const &) = delete;
