@@ -133,7 +133,6 @@ private:
     Parameters params;
     Network *network;
     Tx genesis_tx;
-    // std::unordered_map<UUID, Tx, boost::hash<UUID>> transactions;
     tsl::ordered_map<UUID, Tx, boost::hash<UUID>> transactions;
     std::set<UUID> queried, accepted;
     std::map<int, ConflictSet> conflicts;

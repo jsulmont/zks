@@ -104,17 +104,49 @@ bool Node::is_accepted(Tx tx)
 list<Tx>
 Node::parent_selection()
 {
-    list<Tx> eps0, eps1;
+    list<Tx> eps0;
+    set<Tx> eps1;
     for (auto tx : transactions)
         if (is_strongly_prefered(tx.second))
         {
             eps0.push_back(tx.second);
             auto c = conflicts.find(tx.second.data);
             if (c != conflicts.end() && (c->second.size == 1 || tx.second.confidence > 0))
-                eps1.push_back(tx.second);
+                eps1.insert(tx.second);
         }
-
     list<Tx> parents;
-
+    {
+        auto out = parents.begin();
+        for (auto it : eps1)
+        {
+            auto p = parent_set(it);
+            for (auto jt : p)
+                if (eps1.find(jt) == eps1.end())
+                    parents.push_back(jt);
+        }
+    }
+    list<Tx> fallback{
+        [this]() -> list<Tx> {
+            if (transactions.size() == 1)
+                return {genesis_tx};
+            else
+            {
+                list<Tx> rc; // take 10
+                auto it = transactions.rbegin();
+                auto end = it;
+                advance(end, 10);
+                for (; it != end; ++it)
+                    rc.push_back(it->second);
+                vector<Tx> rc2; // filter
+                for (auto it : rc)
+                {
+                    auto c = conflicts.find(it.data);
+                    if (!is_accepted(it) && c != conflicts.end() && c->second.size == 1)
+                        rc2.push_back(it);
+                }
+                shuffle(rc2.begin(), rc2.end(), network->rng);
+                return list<Tx>(rc2.begin(), rc2.begin() + 3);
+            }
+        }()};
     return {};
 }
