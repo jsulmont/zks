@@ -1,21 +1,50 @@
+#include <fstream>
+#include <boost/format.hpp>
+#include <boost/log/trivial.hpp>
 #include "avalanche.hpp"
 
 using namespace std;
 
+string prtx(const Tx &tx)
+{
+    ostringstream ss;
+    ss << "T(" << tx.strid
+       << ", data=" << tx.data << ")";
+    return ss.str();
+}
+
+string prtxs(const list<Tx> &txs)
+{
+    ostringstream ss;
+    ss << "[";
+    for_each(txs.begin(), txs.end(),
+             [&](auto &it) { ss << it << ","; });
+    ss << "]";
+    return ss.str();
+}
+
 Tx Node::create_tx(int data)
 {
+
     auto edge = parent_selection();
+
     list<UUID> parent_uuids;
     transform(edge.begin(), edge.end(),
               back_inserter(parent_uuids),
               [](auto t) -> UUID { return t.id; });
-    auto t = Tx(data, {});
+    auto t = Tx(data, parent_uuids);
+    BOOST_LOG_TRIVIAL(trace)
+        << "N" << node_id << " create_tx: " << t
+        << ")";
     receive_tx(*this, t);
     return t;
 }
 
 void Node::receive_tx(Node &sender, Tx &tx)
 {
+    BOOST_LOG_TRIVIAL(trace)
+        << "N" << node_id << " received_tx: from=N" << sender.node_id
+        << " tx=" << tx;
     auto it = transactions.find(tx.id);
     if (it != transactions.end())
         return;
@@ -39,6 +68,8 @@ Tx Node::send_tx(UUID &id)
 {
     auto it = transactions.find(id);
     assert(it != transactions.end());
+    BOOST_LOG_TRIVIAL(trace)
+        << "N" << node_id << " send_tx: " << it->second;
     return it->second;
 }
 
@@ -48,23 +79,64 @@ int Node::query(Node &sender, Tx &tx)
     return is_strongly_prefered(tx) ? 1 : 0;
 }
 
+string dump_nodes(const string &what, const vector<shared_ptr<Node>> &nodes)
+{
+    ostringstream ss;
+    ss << what << "= [";
+    for_each(nodes.begin(), nodes.end(), [&](auto &it) { ss << it->node_id << " ,"; });
+    ss << "]";
+    return ss.str();
+}
+
+string dump_uids(const string &name, const set<UUID> &uuids)
+{
+    ostringstream ss;
+    ss << name << "={";
+    for_each(uuids.begin(), uuids.end(),
+             [&](auto &it) { ss << boost::uuids::to_string(it).substr(0, 5) << ","; });
+    ss << "}";
+    return ss.str();
+}
+
+string dump_txs(const tsl::ordered_map<UUID, Tx, boost::hash<UUID>> &txs)
+{
+    //REMOVEME
+    ostringstream ss;
+    ss << "transactions={";
+    for_each(txs.begin(), txs.end(),
+             [&](auto &it) { ss << it.second.strid << ","; });
+    ss << "}";
+    return ss.str();
+}
+
 void Node::avalanche_loop()
 {
+    // BOOST_LOG_TRIVIAL(trace)
+    //     << "N" << node_id
+    //     << ": avalanche_loop: " << dump_txs(transactions)
+    //     << " " << dump_uids("queried", queried)
+    //     << " " << dump_uids("accepted", accepted);
+
     for (auto it = transactions.begin(); it != transactions.end(); ++it)
     {
         // special with tsl, can't use for range
         auto &id = it->first;
         auto &tx = it.value();
-        if (queried.find(id) == queried.end())
+        // BOOST_LOG_TRIVIAL(trace)
+        //     << "avalanche_loop: id=" << boost::uuids::to_string(id).substr(0, 5)
+        //     << " tx=" << tx;
+        if (queried.find(id) != queried.end())
             continue;
         vector<shared_ptr<Node>> sample;
         sample.resize(params.k);
         {
             auto tmp{network->nodes};
-            remove_if(tmp.begin(), tmp.end(), [this](auto &it) { return it.get() == this; });
+            auto it(remove_if(tmp.begin(), tmp.end(), [this](auto &it) { return it.get() == this; }));
+            tmp.erase(it);
             shuffle(tmp.begin(), tmp.end(), network->rng);
             copy_n(tmp.begin(), params.k, sample.begin());
         }
+
         int res = 0;
         for (auto &n : sample)
         {
@@ -137,7 +209,7 @@ bool Node::is_prefered(Tx tx)
 bool Node::is_strongly_prefered(Tx tx)
 {
     for (auto &it : parent_set(tx))
-        if (!is_prefered(tx))
+        if (!is_prefered(it))
             return false;
     return true;
 }
@@ -182,7 +254,6 @@ Node::parent_selection()
         }
     list<Tx> parents;
     {
-        auto out = parents.begin();
         for (auto &it : eps1)
         {
             auto p = parent_set(it);
@@ -230,4 +301,46 @@ double Node::fraction_accepted()
             rc++;
 
     return double(rc) / transactions.size();
+}
+/*
+    fun dumpDag(f: File) {
+        f.printWriter().use { out ->
+            out.println("digraph G {")
+            transactions.values.forEach {
+                val color = if (isAccepted(it)) "color=lightblue; style=filled;" else ""
+                val pref = if (conflicts[it.data]!!.size > 1 && isPreferred(it)) "*" else ""
+                val chit = if (queried.contains(it.id)) it.chit.toString() else "?"
+                out.println("\"${it.id}\" [$color label=\"${it.data}$pref, $chit, ${it.confidence}\"];")
+            }
+            transactions.values.forEach {
+                it.parents.forEach { p->
+                    out.println("\"${it.id}\" -> \"$p\";")
+                }
+            }
+            out.println("}")
+        }
+    }
+ */
+void Node::dump_dag(const std::string &fname)
+{
+    ofstream fs;
+    fs.open(fname);
+    fs << "digraph G{\n";
+    for (auto &[id, tx] : transactions)
+    {
+        auto color = is_accepted(tx) ? "color=lightblue; style=filled;" : "";
+        auto c = conflicts.find(tx.data);
+        auto pref = (c->second.size > 1 && is_prefered(tx)) ? "*" : "";
+        auto chit = queried.find(id) != queried.end() ? to_string(tx.chit) : "?";
+        fs << boost::format("\"%s\" [%s  label=\"%d%s, %s, %d\"];\n") % boost::uuids::to_string(tx.id) % color % tx.data % pref % chit % tx.confidence;
+    }
+    for (auto &[id, tx] : transactions)
+    {
+        for (auto &p : tx.parents)
+        {
+            fs << boost::format("\"%s\" -> \"%s\"\n") % boost::uuids::to_string(tx.id) % boost::uuids::to_string(p);
+        }
+    }
+    fs << "}\n";
+    fs.close();
 }

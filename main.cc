@@ -1,6 +1,7 @@
 #include <list>
 #include <iostream>
 #include <random>
+#include "boost/format.hpp"
 
 #include "avalanche.hpp"
 
@@ -37,7 +38,16 @@ int main()
       }
 
       net.run();
-
-      cout << i << ":  " << n->fraction_accepted() << endl;
+      // if (parameters.dumpDags)
+      // {
+      //    n1.dumpDag(File("node-0-${String.format(" % 03d ", it)}.dot"))
+      //            cout
+      if (p.dump_dags)
+      {
+         ostringstream ss;
+         ss << boost::format("node-0-%03d.dot") % i;
+         n1->dump_dag(ss.str());
+      }
+      cout << i << ":  " << n1->fraction_accepted() << endl;
    }
 }

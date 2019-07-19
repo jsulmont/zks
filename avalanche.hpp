@@ -14,6 +14,7 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/uuid_generators.hpp>
+#include <boost/log/trivial.hpp>
 
 #include "tsl/ordered_map.h"
 #include "parameters.hpp"
@@ -28,23 +29,25 @@ struct Tx
     std::list<UUID> parents;
     int chit;
     int confidence;
+    std::string strid;
 
-    Tx(int data, std::list<UUID> parents, int chit = 1, int confidence = 0)
+    Tx(int data, std::list<UUID> parents, int chit = 0, int confidence = 0)
         : id(boost::uuids::random_generator()()),
           data(data), parents(std::move(parents)), chit(chit),
           confidence(confidence)
     {
+        strid = boost::uuids::to_string(id).substr(0, 5);
     }
 
     Tx(Tx const &tx)
         : id(tx.id), data(tx.data), parents(tx.parents),
-          chit(tx.chit), confidence(tx.confidence)
+          chit(tx.chit), confidence(tx.confidence), strid(tx.strid)
     {
     }
 
     Tx(Tx const &&tx)
         : id(std::move(tx.id)), data(tx.data), parents(std::move(tx.parents)),
-          chit(tx.chit), confidence(tx.confidence)
+          chit(tx.chit), confidence(tx.confidence), strid(tx.strid)
     {
     }
 
@@ -115,6 +118,7 @@ public:
         conflicts.insert({tx_genesis.data, ConflictSet{tx_genesis, tx_genesis, 0, 1}});
         accepted.insert(tx_genesis.id);
         parent_sets.insert({tx_genesis.id, {}});
+        // BOOST_LOG_TRIVIAL(debug) << "NODE=" << node_id << " genesis=" << tx_genesis.strid;
     }
 
     Tx create_tx(int);
@@ -124,7 +128,7 @@ public:
     void avalanche_loop();
     std::list<Tx> parent_selection();
 
-    virtual void protocol_loop()
+    void protocol_loop()
     {
         std::cout << "Node(" << node_id << ") network=0x"
                   << std::hex << network << std::dec
@@ -133,13 +137,16 @@ public:
 
     double fraction_accepted();
 
+    void dump_dag(const std::string&);
+
+    int node_id;
+
 private:
     std::set<Tx> parent_set(Tx);
     bool is_prefered(Tx);
     bool is_strongly_prefered(Tx);
     bool is_accepted(Tx);
 
-    int node_id;
     Parameters params;
     Network *network;
     Tx tx_genesis;
@@ -162,7 +169,7 @@ public:
     void run()
     {
         for (auto &n : nodes)
-            n->protocol_loop();
+            n->avalanche_loop();
     }
 
     // private:
