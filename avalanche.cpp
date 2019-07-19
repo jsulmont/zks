@@ -33,9 +33,7 @@ Tx Node::create_tx(int data)
               back_inserter(parent_uuids),
               [](auto t) -> UUID { return t.id; });
     auto t = Tx(data, parent_uuids);
-    BOOST_LOG_TRIVIAL(trace)
-        << "N" << node_id << " create_tx: " << t
-        << ")";
+    BOOST_LOG_TRIVIAL(trace) << "N" << node_id << " create_tx: " << t;
     receive_tx(*this, t);
     return t;
 }
@@ -119,14 +117,17 @@ void Node::avalanche_loop()
 
     for (auto it = transactions.begin(); it != transactions.end(); ++it)
     {
-        // special with tsl, can't use for range
         auto &id = it->first;
         auto &tx = it.value();
         // BOOST_LOG_TRIVIAL(trace)
         //     << "avalanche_loop: id=" << boost::uuids::to_string(id).substr(0, 5)
         //     << " tx=" << tx;
         if (queried.find(id) != queried.end())
+        {
+            // BOOST_LOG_TRIVIAL(trace) << "avalanche loop: queried found tx=" << tx;
             continue;
+        }
+
         vector<shared_ptr<Node>> sample;
         sample.resize(params.k);
         {
@@ -167,9 +168,9 @@ void Node::avalanche_loop()
         {
             tx.chit = 1;
             auto ps = parent_set(tx);
-            for (auto &ptx : ps)
+            for (auto ptx : ps)
             {
-                // ptx->confidence++;
+                ptx.confidence++;
                 auto cs = conflicts.find(ptx.data);
                 assert(cs != conflicts.end());
                 if (ptx.confidence > cs->second.pref.confidence)
