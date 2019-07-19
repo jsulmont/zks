@@ -143,12 +143,33 @@ void Node::avalanche_loop()
             auto x = tx; // TODO:
             res += n->query(*this, x);
         }
+        /*
+            if (res >= alpha * k) {
+                tx.chit = 1
+                // Update the preference for ancestors.
+                parentSet(tx).forEach { p ->
+                    p.confidence += 1
+                }
+                parentSet(tx).forEach { p->
+                    val cs = conflicts[p.data]!!
+                    if (p.confidence > cs.pref.confidence) {
+                       cs.pref = p
+                    }
+                    if (p != cs.last) {
+                        cs.last = p
+                        cs.count = 0
+                    } else {
+                        cs.count++
+                    }
+                }
+            } */
         if (res >= params.alpha * params.k)
         {
             tx.chit = 1;
             auto ps = parent_set(tx);
             for (auto &ptx : ps)
             {
+                // ptx->confidence++;
                 auto cs = conflicts.find(ptx.data);
                 assert(cs != conflicts.end());
                 if (ptx.confidence > cs->second.pref.confidence)
@@ -302,25 +323,7 @@ double Node::fraction_accepted()
 
     return double(rc) / transactions.size();
 }
-/*
-    fun dumpDag(f: File) {
-        f.printWriter().use { out ->
-            out.println("digraph G {")
-            transactions.values.forEach {
-                val color = if (isAccepted(it)) "color=lightblue; style=filled;" else ""
-                val pref = if (conflicts[it.data]!!.size > 1 && isPreferred(it)) "*" else ""
-                val chit = if (queried.contains(it.id)) it.chit.toString() else "?"
-                out.println("\"${it.id}\" [$color label=\"${it.data}$pref, $chit, ${it.confidence}\"];")
-            }
-            transactions.values.forEach {
-                it.parents.forEach { p->
-                    out.println("\"${it.id}\" -> \"$p\";")
-                }
-            }
-            out.println("}")
-        }
-    }
- */
+
 void Node::dump_dag(const std::string &fname)
 {
     ofstream fs;
