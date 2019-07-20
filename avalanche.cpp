@@ -23,22 +23,22 @@ string prtxs(const list<Tx> &txs)
     return ss.str();
 }
 
-Tx Node::create_tx(int data)
+Tx Node::onGenerateTx(int data)
 {
 
-    auto edge = parent_selection();
+    auto edge = parentSelection();
 
     list<UUID> parent_uuids;
     transform(edge.begin(), edge.end(),
               back_inserter(parent_uuids),
               [](auto t) -> UUID { return t.id; });
     auto t = Tx(data, parent_uuids);
-    BOOST_LOG_TRIVIAL(trace) << "N" << node_id << " create_tx: " << t;
-    receive_tx(*this, t);
+    BOOST_LOG_TRIVIAL(trace) << "N" << node_id << " onGenerateTx: " << t;
+    onReceiveTx(*this, t);
     return t;
 }
 
-void Node::receive_tx(Node &sender, Tx &tx)
+void Node::onReceiveTx(Node &sender, Tx &tx)
 {
     BOOST_LOG_TRIVIAL(trace)
         << "N" << node_id << " received_tx: from=N" << sender.node_id
@@ -51,8 +51,8 @@ void Node::receive_tx(Node &sender, Tx &tx)
     for (auto &it : tx.parents)
         if (transactions.find(it) == transactions.end())
         {
-            auto t = sender.send_tx(it);
-            receive_tx(sender, t); // recursive
+            auto t = sender.onSendTx(it);
+            onReceiveTx(sender, t); // recursive
         }
     auto c = conflicts.find(tx.data);
     if (c != conflicts.end())
@@ -62,19 +62,19 @@ void Node::receive_tx(Node &sender, Tx &tx)
     transactions.insert(make_pair(tx.id, tx));
 }
 
-Tx Node::send_tx(UUID &id)
+Tx Node::onSendTx(UUID &id)
 {
     auto it = transactions.find(id);
     assert(it != transactions.end());
     BOOST_LOG_TRIVIAL(trace)
-        << "N" << node_id << " send_tx: " << it->second;
+        << "N" << node_id << " onSendTx: " << it->second;
     return it->second;
 }
 
-int Node::query(Node &sender, Tx &tx)
+int Node::onQuery(Node &sender, Tx &tx)
 {
-    receive_tx(sender, tx);
-    return is_strongly_prefered(tx) ? 1 : 0;
+    onReceiveTx(sender, tx);
+    return isStronglyPrefered(tx) ? 1 : 0;
 }
 
 string dump_nodes(const string &what, const vector<shared_ptr<Node>> &nodes)
@@ -98,7 +98,7 @@ string dump_uids(const string &name, const set<UUID> &uuids)
 
 string dump_txs(const tsl::ordered_map<UUID, Tx, boost::hash<UUID>> &txs)
 {
-    //REMOVEME
+    //TODO: remove
     ostringstream ss;
     ss << "transactions={";
     for_each(txs.begin(), txs.end(),
@@ -107,26 +107,14 @@ string dump_txs(const tsl::ordered_map<UUID, Tx, boost::hash<UUID>> &txs)
     return ss.str();
 }
 
-void Node::avalanche_loop()
+void Node::avalancheLoop()
 {
-    // BOOST_LOG_TRIVIAL(trace)
-    //     << "N" << node_id
-    //     << ": avalanche_loop: " << dump_txs(transactions)
-    //     << " " << dump_uids("queried", queried)
-    //     << " " << dump_uids("accepted", accepted);
-
     for (auto it = transactions.begin(); it != transactions.end(); ++it)
     {
         auto &id = it->first;
         auto &tx = it.value();
-        // BOOST_LOG_TRIVIAL(trace)
-        //     << "avalanche_loop: id=" << boost::uuids::to_string(id).substr(0, 5)
-        //     << " tx=" << tx;
         if (queried.find(id) != queried.end())
-        {
-            // BOOST_LOG_TRIVIAL(trace) << "avalanche loop: queried found tx=" << tx;
             continue;
-        }
 
         vector<shared_ptr<Node>> sample;
         sample.resize(params.k);
@@ -142,28 +130,8 @@ void Node::avalanche_loop()
         for (auto &n : sample)
         {
             auto x = tx; // TODO:
-            res += n->query(*this, x);
+            res += n->onQuery(*this, x);
         }
-        /*
-            if (res >= alpha * k) {
-                tx.chit = 1
-                // Update the preference for ancestors.
-                parentSet(tx).forEach { p ->
-                    p.confidence += 1
-                }
-                parentSet(tx).forEach { p->
-                    val cs = conflicts[p.data]!!
-                    if (p.confidence > cs.pref.confidence) {
-                       cs.pref = p
-                    }
-                    if (p != cs.last) {
-                        cs.last = p
-                        cs.count = 0
-                    } else {
-                        cs.count++
-                    }
-                }
-            } */
         if (res >= params.alpha * params.k)
         {
             tx.chit = 1;
@@ -220,7 +188,7 @@ std::set<Tx> Node::parent_set(Tx tx)
     return parents;
 }
 
-bool Node::is_prefered(Tx tx)
+bool Node::isPrefered(Tx tx)
 {
     auto it = conflicts.find(tx.data);
     if (it != conflicts.end())
@@ -228,15 +196,15 @@ bool Node::is_prefered(Tx tx)
     return false;
 }
 
-bool Node::is_strongly_prefered(Tx tx)
+bool Node::isStronglyPrefered(Tx tx)
 {
     for (auto &it : parent_set(tx))
-        if (!is_prefered(it))
+        if (!isPrefered(it))
             return false;
     return true;
 }
 
-bool Node::is_accepted(Tx tx)
+bool Node::isAccepted(Tx tx)
 {
     if (accepted.find(tx.id) != accepted.end())
         return true;
@@ -261,12 +229,12 @@ bool Node::is_accepted(Tx tx)
 }
 
 list<Tx>
-Node::parent_selection()
+Node::parentSelection()
 {
     list<Tx> eps0;
     set<Tx> eps1;
     for (auto &tx : transactions)
-        if (is_strongly_prefered(tx.second))
+        if (isStronglyPrefered(tx.second))
         {
             eps0.push_back(tx.second);
             auto c = conflicts.find(tx.second.data);
@@ -298,7 +266,7 @@ Node::parent_selection()
                 vector<Tx> rc2;
                 for (auto &e : rc)
                 {
-                    if (is_accepted(e))
+                    if (isAccepted(e))
                         continue;
                     auto it = conflicts.find(e.data);
                     assert(it != conflicts.end());
@@ -315,26 +283,26 @@ Node::parent_selection()
     return fallback;
 }
 
-double Node::fraction_accepted()
+double Node::fractionAccepted()
 {
     int rc{0};
     for (auto it = transactions.begin(); it != transactions.end(); ++it)
-        if (is_accepted(it->second))
+        if (isAccepted(it->second))
             rc++;
 
     return double(rc) / transactions.size();
 }
 
-void Node::dump_dag(const std::string &fname)
+void Node::dumpDag(const std::string &fname)
 {
     ofstream fs;
     fs.open(fname);
     fs << "digraph G{\n";
     for (auto &[id, tx] : transactions)
     {
-        auto color = is_accepted(tx) ? "color=lightblue; style=filled;" : "";
+        auto color = isAccepted(tx) ? "color=lightblue; style=filled;" : "";
         auto c = conflicts.find(tx.data);
-        auto pref = (c->second.size > 1 && is_prefered(tx)) ? "*" : "";
+        auto pref = (c->second.size > 1 && isPrefered(tx)) ? "*" : "";
         auto chit = queried.find(id) != queried.end() ? to_string(tx.chit) : "?";
         fs << boost::format("\"%s\" [%s  label=\"%d%s, %s, %d\"];\n") % boost::uuids::to_string(tx.id) % color % tx.data % pref % chit % tx.confidence;
     }

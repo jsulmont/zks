@@ -24,7 +24,7 @@ int main()
       auto &n = net.nodes[dist(net.rng)];
 
       // send a transaction
-      c1.push_back(n->create_tx(i));
+      c1.push_back(n->onGenerateTx(i));
 
       // random double spend
       if (next_double(net.rng) < p.double_spend_ratio)
@@ -34,20 +34,17 @@ int main()
          auto nodes = net.nodes;
          shuffle(nodes.begin(), nodes.end(), net.rng);
          auto &n2 = nodes.front();
-         c2.push_back(n2->create_tx(d));
+         c2.push_back(n2->onGenerateTx(d));
       }
 
       net.run();
-      // if (parameters.dumpDags)
-      // {
-      //    n1.dumpDag(File("node-0-${String.format(" % 03d ", it)}.dot"))
-      //            cout
+
       if (p.dump_dags)
       {
          ostringstream ss;
          ss << boost::format("node-0-%03d.dot") % i;
-         n1->dump_dag(ss.str());
+         n1->dumpDag(ss.str());
       }
-      cout << i << ":  " << n1->fraction_accepted() << endl;
+      cout << i << ":  " << n1->fractionAccepted() << endl;
    }
 }

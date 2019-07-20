@@ -121,31 +121,22 @@ public:
         // BOOST_LOG_TRIVIAL(debug) << "NODE=" << node_id << " genesis=" << tx_genesis.strid;
     }
 
-    Tx create_tx(int);
-    void receive_tx(Node &, Tx &);
-    Tx send_tx(UUID &);
-    int query(Node &, Tx &);
-    void avalanche_loop();
-    std::list<Tx> parent_selection();
-
-    void protocol_loop()
-    {
-        std::cout << "Node(" << node_id << ") network=0x"
-                  << std::hex << network << std::dec
-                  << " genesis=" << tx_genesis << std::endl;
-    }
-
-    double fraction_accepted();
-
-    void dump_dag(const std::string&);
+    Tx onGenerateTx(int);
+    void onReceiveTx(Node &, Tx &);
+    Tx onSendTx(UUID &);
+    int onQuery(Node &, Tx &);
+    void avalancheLoop();
+    std::list<Tx> parentSelection();
+    double fractionAccepted();
+    void dumpDag(const std::string &);
 
     int node_id;
 
 private:
     std::set<Tx> parent_set(Tx);
-    bool is_prefered(Tx);
-    bool is_strongly_prefered(Tx);
-    bool is_accepted(Tx);
+    bool isPrefered(Tx);
+    bool isStronglyPrefered(Tx);
+    bool isAccepted(Tx);
 
     Parameters params;
     Network *network;
@@ -169,7 +160,7 @@ public:
     void run()
     {
         for (auto &n : nodes)
-            n->avalanche_loop();
+            n->avalancheLoop();
     }
 
     // private:
