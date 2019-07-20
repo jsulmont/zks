@@ -28,6 +28,7 @@ int main()
       c1.push_back(n->onGenerateTx(i));
 
       // random double spend
+      auto x = next_double(net.rng);
       if (next_double(net.rng) < p.double_spend_ratio)
       {
          auto d = uniform_int_distribution<int>(0, i)(net.rng);

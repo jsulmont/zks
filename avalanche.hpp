@@ -144,7 +144,7 @@ public:
     TxPtr onSendTx(UUID &);
     int onQuery(Node &, TxPtr &);
     void avalancheLoop();
-    TxSet parentSelection();
+    std::vector<TxPtr> parentSelection();
     double fractionAccepted();
     void dumpDag(const std::string &);
 

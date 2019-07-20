@@ -34,7 +34,7 @@ TxPtr Node::onGenerateTx(int data)
               back_inserter(parent_uuids),
               [](auto t) -> UUID { return t->id; });
     auto t = make_shared<Tx>(data, parent_uuids);
-    BOOST_LOG_TRIVIAL(trace) << "N" << node_id << " onGenerateTx: " << t;
+    BOOST_LOG_TRIVIAL(trace) << "N" << node_id << " onGenerateTx: " << *t;
     onReceiveTx(*this, t);
     return t;
 }
@@ -42,13 +42,15 @@ TxPtr Node::onGenerateTx(int data)
 void Node::onReceiveTx(Node &sender, TxPtr &tx)
 {
     BOOST_LOG_TRIVIAL(trace)
-        << "N" << node_id << " received_tx: from=N" << sender.node_id
-        << " tx=" << tx;
+        << "N" << node_id << " onReceiveTx: from=N" << sender.node_id
+        << " tx=" << *tx;
     auto it = transactions.find(tx->id);
     if (it != transactions.end())
         return;
     tx->chit = 0;
     tx->confidence = 0;
+    BOOST_LOG_TRIVIAL(trace) <<
+      "resetting confidence to 0 for tx=" << tx->strid;
     for (auto &it : tx->parents)
         if (transactions.find(it) == transactions.end())
         {
@@ -68,7 +70,7 @@ TxPtr Node::onSendTx(UUID &id)
     auto it = transactions.find(id);
     assert(it != transactions.end());
     BOOST_LOG_TRIVIAL(trace)
-        << "N" << node_id << " onSendTx: " << it->second;
+        << "N" << node_id << " onSendTx: " << *it->second;
     return make_shared<Tx>(*it->second);
 }
 
@@ -132,8 +134,6 @@ void Node::avalancheLoop()
         int P = 0;
         for (auto &n : K)
             P += n->onQuery(*this, T);
-
-        BOOST_LOG_TRIVIAL(trace) << "avalancheLoop: sum=" << P;
 
         // block for line 4.6 to 4.15
         // line 4.6:  if P ≥ α·k then
@@ -244,7 +244,7 @@ bool Node::isAccepted(const TxPtr &tx)
     return rc;
 }
 
-ostream &operator<<(ostream &out, const TxSet &st)
+ostream &operator<<(ostream &out, const vector<TxPtr> &st)
 {
     out << "[";
     for_each(st.begin(), st.end(), [&](auto &e) { out << e->strid << ","; });
@@ -252,40 +252,36 @@ ostream &operator<<(ostream &out, const TxSet &st)
     return out;
 }
 
-TxSet Node::parentSelection()
+vector<TxPtr> Node::parentSelection()
 {
     // Avalanche paper section IV.2: Parent Selection
     //   E = {T : ∀ T ∈ T, isStronglyPreferred(T)}
     //   E′ := {T : |PT|=1 ∨ d(T)>0, ∀T ∈ E}.
-    TxSet E0, E1;
+    vector<TxPtr> E0, E1;
 
     for (auto [id, T] : transactions)
         if (isStronglyPrefered(T))
         {
-            E0.insert(T);
+            E0.push_back(T);
             auto c = conflicts.find(T->data);
             assert(c != conflicts.end());
             if (c->second.size == 1 || T->confidence > 0)
-                E1.insert(T);
+                E1.push_back(T);
         }
 
-    TxSet parents;
+    //         val parents = eps1.flatMap { parentSet(it) }.toSet().filterNot { eps1.contains(it) }
+    vector<TxPtr> parents;
     for (auto &it : E1)
         for (auto &jt : parentSet(it))
-            if (auto f = find(E1.begin(), E1.end(), jt); f != E1.end())
-                parents.insert(jt);
+            //if (E1.find(jt) == E1.end())
+            if (find(E1.begin(), E1.end(), jt) == E1.end())
+                parents.push_back(jt);
 
-    TxSet fallback;
+    vector<TxPtr> fallback;
     if (transactions.size() == 1)
-        fallback.insert(tx_genesis);
+        fallback.push_back(tx_genesis);
     else
     {
-        /* transactions.values.reversed()
-           .take(10)
-           .filter{!isAccepted(it) && conflicts[it.data]!!.size == 1}
-           .shuffled(network.rng)
-           .take(3)*/
-        //   TODO: use std::range
         vector<TxPtr> tx10;
         int n{10};
         for (auto it = transactions.rbegin(); it != transactions.rend() && n > 0; ++it, --n)
@@ -299,18 +295,17 @@ TxSet Node::parentSelection()
                 tx3.push_back(e);
         }
         shuffle(tx3.begin(), tx3.end(), network->rng);
-        // list<const TxPtr *> rc(tx3.begin(), tx3.begin() + (tx3.size() > 3 ? 3 : tx3.size()));
-        // //        fallback.insert(rc.begin(), rc.end());
-        fallback.insert(tx3.begin(), tx3.begin() + (tx3.size() > 3 ? 3 : tx3.size()));
+        copy(tx3.begin(), tx3.begin() + (tx3.size() > 3 ? 3 : tx3.size()), back_inserter(fallback));
     }
 
     assert(!(parents.empty() && fallback.empty()));
-    BOOST_LOG_TRIVIAL(trace)
-        << "N" << node_id
+    //BOOST_LOG_TRIVIAL(trace)
+    cout
+        // << "N" << node_id
         << " E0=" << E0
         << " E1=" << E1
         << " P=" << parents
-        << " F=" << fallback;
+        << " F=" << fallback << endl;
 
     if (!parents.empty())
         return parents;
