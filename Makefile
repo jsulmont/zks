@@ -8,8 +8,8 @@ zks.exe: main.o avalanche.o
 avalanche.o: avalanche.cpp avalanche.hpp parameters.hpp
 	$(CXX) $(CXXFLAGS) -c avalanche.cpp
 
-main.o: main.cc avalanche.hpp parameters.hpp
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c main.cc
+main.o: main.cpp avalanche.hpp parameters.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c main.cpp
 
 clean:
 	$(RM) *.o zks.exe

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <random>
 #include "boost/format.hpp"
+#include <boost/log/trivial.hpp>
 
 #include "avalanche.hpp"
 
@@ -11,7 +12,7 @@ int main()
 {
    Parameters p;
    Network net(p);
-
+   cout << "GENESIS=" << net.tx_genesis.strid << endl;
    auto &n1 = net.nodes[0];
    uniform_real_distribution<double> next_double(0.0, 1.0);
    list<Tx> c1, c2;
@@ -46,5 +47,10 @@ int main()
          n1->dumpDag(ss.str());
       }
       cout << i << ":  " << n1->fractionAccepted() << endl;
+      for (auto &N : net.nodes)
+         for (auto it = N->transactions.rbegin(); it < N->transactions.rend(); it++)
+         {
+            cerr << "R:" << i << " N:" << N->node_id << " " << it->second << endl;
+         }
    }
 }

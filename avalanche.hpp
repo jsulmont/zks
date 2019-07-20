@@ -117,7 +117,7 @@ public:
         queried.insert(tx_genesis.id);
         conflicts.insert({tx_genesis.data, ConflictSet{tx_genesis, tx_genesis, 0, 1}});
         accepted.insert(tx_genesis.id);
-        parent_sets.insert({tx_genesis.id, {}});
+        // parentSets.insert({tx_genesis.id, {}});
         // BOOST_LOG_TRIVIAL(debug) << "NODE=" << node_id << " genesis=" << tx_genesis.strid;
     }
 
@@ -126,14 +126,14 @@ public:
     Tx onSendTx(UUID &);
     int onQuery(Node &, Tx &);
     void avalancheLoop();
-    std::list<Tx> parentSelection();
+    std::set<Tx> parentSelection();
     double fractionAccepted();
     void dumpDag(const std::string &);
 
     int node_id;
 
-private:
-    std::set<Tx> parent_set(Tx);
+    //private:
+    std::set<Tx> parentSet(Tx);
     bool isPrefered(Tx);
     bool isStronglyPrefered(Tx);
     bool isAccepted(Tx);
@@ -144,7 +144,7 @@ private:
     tsl::ordered_map<UUID, Tx, boost::hash<UUID>> transactions;
     std::set<UUID> queried, accepted;
     std::map<int, ConflictSet> conflicts;
-    std::map<UUID, std::set<Tx>> parent_sets;
+    std::map<UUID, std::set<Tx>> parentSets;
 };
 
 class Network

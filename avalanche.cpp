@@ -1,4 +1,5 @@
 #include <fstream>
+#include <algorithm>
 #include <boost/format.hpp>
 #include <boost/log/trivial.hpp>
 #include "avalanche.hpp"
@@ -111,56 +112,70 @@ void Node::avalancheLoop()
 {
     for (auto it = transactions.begin(); it != transactions.end(); ++it)
     {
-        auto &id = it->first;
-        auto &tx = it.value();
-        if (queried.find(id) != queried.end())
+        // auto &id = it->first;
+        auto &T = it.value();
+        // line 4.3:  find T that satisfies T ∈ T ∧ T ∈/ Q
+        if (queried.find(T.id) != queried.end())
             continue;
 
-        vector<shared_ptr<Node>> sample;
-        sample.resize(params.k);
+        // line 4.4:  K := sample(N \u, k)
+        vector<shared_ptr<Node>> K;
+        K.resize(params.k);
         {
             auto tmp{network->nodes};
             auto it(remove_if(tmp.begin(), tmp.end(), [this](auto &it) { return it.get() == this; }));
             tmp.erase(it);
             shuffle(tmp.begin(), tmp.end(), network->rng);
-            copy_n(tmp.begin(), params.k, sample.begin());
+            copy_n(tmp.begin(), params.k, K.begin());
         }
 
-        int res = 0;
-        for (auto &n : sample)
+        // line 4.5: P := Σ_(v∈K) query(v,T)
+        int P = 0;
+        for (auto &n : K)
         {
-            auto x = tx; // TODO:
-            res += n->onQuery(*this, x);
+            auto x = T; // TODO:
+            P += n->onQuery(*this, x);
         }
-        if (res >= params.alpha * params.k)
+
+        // block for line 4.6 to 4.15
+        // line 4.6:  if P ≥ α·k then
+        if (P >= params.alpha * params.k)
         {
-            tx.chit = 1;
-            auto ps = parent_set(tx);
-            for (auto ptx : ps)
+            // line 4.7: cT :=1
+            T.chit = 1;
+            auto ancestors = parentSet(T);
+
+            // update the preference for ancestors
+            // line 4.9:  for T′∈ T: T′←∗ T  do
+            for (auto Tp : ancestors)
             {
-                ptx.confidence++;
-                auto cs = conflicts.find(ptx.data);
+                Tp.confidence++; // TODO: WHAT??
+                auto cs = conflicts.find(Tp.data);
                 assert(cs != conflicts.end());
-                if (ptx.confidence > cs->second.pref.confidence)
-                    cs->second.pref = ptx;
-                if (ptx != cs->second.last)
-                {
-                    cs->second.last = ptx;
-                    cs->second.count = 0;
-                }
+
+                // line 4.10: if d(T′) > d(PT′.pref) then
+                if (Tp.confidence > cs->second.pref.confidence)
+                    // line 4.11: PT′.pref := T′
+                    cs->second.pref = Tp;
+
+                // line 4.12: if T′ ≠ PT′.last then
+                if (Tp != cs->second.last)
+                    // line 4.13: PT′.last :=  T′, PT′.cnt := 0
+                    cs->second.last = Tp, cs->second.count = 0;
                 else
+                    // line 4.15: ++PT′.cnt
                     cs->second.count++;
             }
         }
-        queried.insert(id);
+        queried.insert(T.id);
     }
 }
 
-std::set<Tx> Node::parent_set(Tx tx)
+std::set<Tx> Node::parentSet(Tx tx)
 {
-    auto it = parent_sets.find(tx.id);
-    if (it != parent_sets.end())
+    if (auto it = parentSets.find(tx.id); it != parentSets.end())
         return it->second;
+
     set<Tx> parents;
     set<UUID> ps(tx.parents.begin(), tx.parents.end());
     while (!ps.empty())
@@ -184,23 +199,24 @@ std::set<Tx> Node::parent_set(Tx tx)
         }
         ps = set<UUID>(new_ps.begin(), new_ps.end());
     }
-    parent_sets[tx.id] = parents;
+    parentSets[tx.id] = parents;
     return parents;
 }
 
 bool Node::isPrefered(Tx tx)
 {
-    auto it = conflicts.find(tx.data);
-    if (it != conflicts.end())
+    if (auto it = conflicts.find(tx.data); it != conflicts.end())
         return it->second.pref == tx;
-    return false;
+    else
+        return false;
 }
 
 bool Node::isStronglyPrefered(Tx tx)
 {
-    for (auto &it : parent_set(tx))
-        if (!isPrefered(it))
-            return false;
+    if (auto ps = parentSet(tx); !ps.empty())
+        for (auto p : ps)
+            if (!isPrefered(p))
+                return false;
     return true;
 }
 
@@ -228,56 +244,74 @@ bool Node::isAccepted(Tx tx)
     return rc;
 }
 
-list<Tx>
+ostream &operator<<(ostream &out, const set<Tx> &st)
+{
+    out << "[";
+    for_each(st.begin(), st.end(), [&](auto &e) { out << e.strid << ","; });
+    out << "]";
+    return out;
+}
+
+set<Tx>
 Node::parentSelection()
 {
-    list<Tx> eps0;
-    set<Tx> eps1;
-    for (auto &tx : transactions)
-        if (isStronglyPrefered(tx.second))
+    // Avalanche paper section IV.2: Parent Selection
+    //   E = {T : ∀ T ∈ T, isStronglyPreferred(T)}
+    //   E′ := {T : |PT|=1 ∨ d(T)>0, ∀T ∈ E}.
+    set<Tx> E0, E1;
+
+    for (auto [id, T] : transactions)
+        if (isStronglyPrefered(T))
         {
-            eps0.push_back(tx.second);
-            auto c = conflicts.find(tx.second.data);
+            E0.insert(T);
+            auto c = conflicts.find(T.data);
             assert(c != conflicts.end());
-            if (c->second.size == 1 || tx.second.confidence > 0)
-                eps1.insert(tx.second);
+            if (c->second.size == 1 || T.confidence > 0)
+                E1.insert(T);
         }
-    list<Tx> parents;
+
+    set<Tx> parents;
+    for (auto &it : E1)
+        for (auto &jt : parentSet(it))
+            if (auto f = find(E1.begin(), E1.end(), jt); f != E1.end())
+                parents.insert(jt);
+
+    set<Tx> fallback;
+    if (transactions.size() == 1)
+        fallback = {tx_genesis};
+    else
     {
-        for (auto &it : eps1)
+        /* transactions.values.reversed()
+           .take(10)
+           .filter{!isAccepted(it) && conflicts[it.data]!!.size == 1}
+           .shuffled(network.rng)
+           .take(3)*/
+        //   TODO: use std::range
+        vector<Tx> tx10;
+        int n{10};
+        for (auto it = transactions.rbegin(); it != transactions.rend() && n > 0; ++it, --n)
+            tx10.push_back(it->second);
+        vector<Tx> tx3;
+        for (auto &e : tx10)
         {
-            auto p = parent_set(it);
-            for (auto &jt : p)
-                if (eps1.find(jt) == eps1.end())
-                    parents.push_back(jt);
+            auto c = conflicts.find(e.data);
+            assert(c != conflicts.end());
+            if (c->second.size == 1)
+                tx3.push_back(e);
         }
+        shuffle(tx3.begin(), tx3.end(), network->rng);
+        list<Tx> rc(tx3.begin(), tx3.begin() + (tx3.size() > 3 ? 3 : tx3.size()));
+        fallback = set<Tx>(rc.begin(), rc.end());
     }
-    list<Tx> fallback{
-        [this]() -> list<Tx> {
-            if (transactions.size() == 1)
-                return {tx_genesis};
-            else
-            {
-                // TODO: use std::range when available
-                list<Tx> rc; // take 10
-                int n{10};
-                for (auto it = transactions.rbegin(); it < transactions.rend() && n > 0; ++it, --n)
-                    rc.push_back(it->second);
-                vector<Tx> rc2;
-                for (auto &e : rc)
-                {
-                    if (isAccepted(e))
-                        continue;
-                    auto it = conflicts.find(e.data);
-                    assert(it != conflicts.end());
-                    if (it->second.size == 1)
-                        rc2.push_back(std::move(e));
-                }
-                shuffle(rc2.begin(), rc2.end(), network->rng);
-                return list<Tx>(rc2.begin(), rc2.begin() + (rc2.size() > 3 ? 3 : rc2.size()));
-            }
-        }()};
+
     assert(!(parents.empty() && fallback.empty()));
+    BOOST_LOG_TRIVIAL(trace)
+        << "N" << node_id
+        << " E0=" << E0
+        << " E1=" << E1
+        << " P=" << parents
+        << " F=" << fallback;
+
     if (!parents.empty())
         return parents;
     return fallback;
