@@ -106,10 +106,26 @@ struct tx_compare
 };
 typedef std::set<const Tx *, tx_compare> TxSet;
 
-struct ConflictSet
+class ConflictSet
 {
-    const Tx *pref, *last;
+public:
+    const Tx *pref = 0, *last = 0;
     size_t count, size;
+    ConflictSet(const Tx *pref, const Tx *last, size_t count = 0, size_t size = 0)
+        : pref(pref), last(last), count(count), size(size) {}
+    ConflictSet(const ConflictSet &cs)
+        : pref(cs.pref), last(cs.last), count(cs.count), size(cs.size) {}
+    ConflictSet &operator=(ConflictSet &cs)
+    {
+        pref = cs.pref;
+        last = cs.pref;
+        count = cs.count;
+        size = cs.size;
+        return *this;
+    }
+
+private:
+    ConflictSet();
 };
 
 class Network;
