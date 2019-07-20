@@ -39,13 +39,13 @@ struct Tx
         strid = boost::uuids::to_string(id).substr(0, 5);
     }
 
-    Tx(Tx const &tx)
+    Tx(Tx &tx)
         : id(tx.id), data(tx.data), parents(tx.parents),
           chit(tx.chit), confidence(tx.confidence), strid(tx.strid)
     {
     }
 
-    Tx(Tx const &&tx)
+    Tx(Tx &&tx)
         : id(std::move(tx.id)), data(tx.data), parents(std::move(tx.parents)),
           chit(tx.chit), confidence(tx.confidence), strid(tx.strid)
     {
@@ -97,21 +97,16 @@ inline std::string Tx::to_string() const
     ss << *this;
     return ss.str();
 }
-struct tx_compare
-{
-    bool operator()(const Tx *tx1, const Tx *tx2) const
-    {
-        return tx1->id < tx2->id;
-    }
-};
-typedef std::set<const Tx *, tx_compare> TxSet;
+
+using TxPtr = std::shared_ptr<Tx>;
+using TxSet = std::set<TxPtr>;
 
 class ConflictSet
 {
 public:
-    const Tx *pref = 0, *last = 0;
+    TxPtr pref = 0, last = 0;
     size_t count, size;
-    ConflictSet(const Tx *pref, const Tx *last, size_t count = 0, size_t size = 0)
+    ConflictSet(const TxPtr pref, const TxPtr last, size_t count = 0, size_t size = 0)
         : pref(pref), last(last), count(count), size(size) {}
     ConflictSet(const ConflictSet &cs)
         : pref(cs.pref), last(cs.last), count(cs.count), size(cs.size) {}
@@ -135,18 +130,19 @@ class Node
 public:
     Node(int id, Parameters const &params,
          Network *network, Tx &genesis)
-        : node_id(id), params(params), network(network), tx_genesis(genesis)
+        : node_id(id), params(params), network(network)
     {
-        transactions.insert({tx_genesis.id, tx_genesis});
-        queried.insert(tx_genesis.id);
-        conflicts.insert({tx_genesis.data, ConflictSet{&tx_genesis, &tx_genesis, 0, 1}});
-        accepted.insert(tx_genesis.id);
+        tx_genesis = std::make_shared<Tx>(genesis);
+        transactions.insert({tx_genesis->id, tx_genesis});
+        queried.insert(tx_genesis->id);
+        conflicts.insert({tx_genesis->data, ConflictSet{tx_genesis, tx_genesis, 0, 1}});
+        accepted.insert(tx_genesis->id);
     }
 
-    Tx onGenerateTx(int);
-    void onReceiveTx(Node &, Tx &);
-    Tx onSendTx(UUID &);
-    int onQuery(Node &, Tx &);
+    TxPtr onGenerateTx(int);
+    void onReceiveTx(Node &, TxPtr &);
+    TxPtr onSendTx(UUID &);
+    int onQuery(Node &, TxPtr &);
     void avalancheLoop();
     TxSet parentSelection();
     double fractionAccepted();
@@ -155,15 +151,15 @@ public:
     int node_id;
 
     //private:
-    TxSet parentSet(const Tx *);
-    bool isPrefered(const Tx *);
-    bool isStronglyPrefered(const Tx *);
-    bool isAccepted(const Tx *);
+    TxSet parentSet(const TxPtr &);
+    bool isPrefered(const TxPtr &);
+    bool isStronglyPrefered(const TxPtr &);
+    bool isAccepted(const TxPtr &);
 
     Parameters params;
     Network *network;
-    Tx tx_genesis;
-    tsl::ordered_map<UUID, Tx, boost::hash<UUID>> transactions;
+    TxPtr tx_genesis;
+    tsl::ordered_map<UUID, TxPtr, boost::hash<UUID>> transactions;
     std::set<UUID> queried, accepted;
     std::map<int, ConflictSet> conflicts; // TODO UTXO
     std::map<UUID, TxSet> parentSets;
