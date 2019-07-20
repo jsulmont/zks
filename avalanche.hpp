@@ -97,10 +97,18 @@ inline std::string Tx::to_string() const
     ss << *this;
     return ss.str();
 }
+struct tx_compare
+{
+    bool operator()(const Tx *tx1, const Tx *tx2) const
+    {
+        return tx1->id < tx2->id;
+    }
+};
+typedef std::set<const Tx *, tx_compare> TxSet;
 
 struct ConflictSet
 {
-    Tx pref, last;
+    const Tx *pref, *last;
     size_t count, size;
 };
 
@@ -115,10 +123,8 @@ public:
     {
         transactions.insert({tx_genesis.id, tx_genesis});
         queried.insert(tx_genesis.id);
-        conflicts.insert({tx_genesis.data, ConflictSet{tx_genesis, tx_genesis, 0, 1}});
+        conflicts.insert({tx_genesis.data, ConflictSet{&tx_genesis, &tx_genesis, 0, 1}});
         accepted.insert(tx_genesis.id);
-        // parentSets.insert({tx_genesis.id, {}});
-        // BOOST_LOG_TRIVIAL(debug) << "NODE=" << node_id << " genesis=" << tx_genesis.strid;
     }
 
     Tx onGenerateTx(int);
@@ -126,25 +132,25 @@ public:
     Tx onSendTx(UUID &);
     int onQuery(Node &, Tx &);
     void avalancheLoop();
-    std::set<Tx> parentSelection();
+    TxSet parentSelection();
     double fractionAccepted();
     void dumpDag(const std::string &);
 
     int node_id;
 
     //private:
-    std::set<Tx> parentSet(Tx);
-    bool isPrefered(Tx);
-    bool isStronglyPrefered(Tx);
-    bool isAccepted(Tx);
+    TxSet parentSet(const Tx *);
+    bool isPrefered(const Tx *);
+    bool isStronglyPrefered(const Tx *);
+    bool isAccepted(const Tx *);
 
     Parameters params;
     Network *network;
     Tx tx_genesis;
     tsl::ordered_map<UUID, Tx, boost::hash<UUID>> transactions;
     std::set<UUID> queried, accepted;
-    std::map<int, ConflictSet> conflicts;
-    std::map<UUID, std::set<Tx>> parentSets;
+    std::map<int, ConflictSet> conflicts; // TODO UTXO
+    std::map<UUID, TxSet> parentSets;
 };
 
 class Network

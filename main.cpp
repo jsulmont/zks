@@ -47,10 +47,12 @@ int main()
          n1->dumpDag(ss.str());
       }
       cout << i << ":  " << n1->fractionAccepted() << endl;
+#if 0
       for (auto &N : net.nodes)
          for (auto it = N->transactions.rbegin(); it < N->transactions.rend(); it++)
          {
             cerr << "R:" << i << " N:" << N->node_id << " " << it->second << endl;
          }
+#endif
    }
 }
