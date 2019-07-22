@@ -10,6 +10,7 @@
 using namespace std;
 
 // vector<int> N{0, 1};
+
 extern Parameters parse_options(int, char **);
 
 int main(int argc, char **argv)
@@ -78,12 +79,15 @@ int main(int argc, char **argv)
             return false;
          }()};
          assert(!(tx1_anynode && tx2_anynode));
-         cout << "double spend: data=" << v << " tx= " << l[0]->strid;
+         cout << "double spend: data=" << v << " Txs = ";
          if (tx1_anynode)
-            cout << " [accept] ";
-         cout << l[1]->strid;
+            cout << "[" << l[0]->strid << "] ";
+         else
+            cout << l[0]->strid;
          if (tx2_anynode)
-            cout << " [accept] ";
+            cout << " [" << l[1]->strid << "]";
+         else
+            cout << l[1]->strid;
          cout << endl;
       }
 }
