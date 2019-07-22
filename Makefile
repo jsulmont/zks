@@ -1,10 +1,10 @@
-CXX = clang++ -std=c++2a
+CXX = clang++ -std=c++17
 # CXX = g++-9 -std=c++17
-CXXFLAGS = -DBOOST_LOG_DYN_LINK  -g -Wall
+CXXFLAGS = -g -Wall
 all: zks.exe
 
 zks.exe: main.o avalanche.o
-	$(CXX) -o zks.exe main.o avalanche.o -lboost_log-mt
+	$(CXX) -o zks.exe main.o avalanche.o 
 
 avalanche.o: avalanche.cpp avalanche.hpp parameters.hpp
 	$(CXX) $(CXXFLAGS) -c avalanche.cpp

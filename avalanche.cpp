@@ -1,7 +1,6 @@
 #include <fstream>
 #include <algorithm>
 #include <boost/format.hpp>
-// #include <boost/log/trivial.hpp>
 #include "avalanche.hpp"
 
 using namespace std;
@@ -34,7 +33,6 @@ TxPtr Node::onGenerateTx(int data)
               back_inserter(parent_uuids),
               [](auto t) -> UUID { return t->id; });
     auto t = make_shared<Tx>(data, parent_uuids);
-    cout << "N" << node_id << " onGenerateTx: " << *t << endl;
     onReceiveTx(*this, t);
     return t;
 }
@@ -44,8 +42,6 @@ void Node::onReceiveTx(Node &sender, TxPtr &tx)
     auto it = transactions.find(tx->id);
     if (it != transactions.end())
         return;
-    cout << "N" << node_id << " onReceiveTx: from=N" << sender.node_id
-         << " tx=" << *tx << endl;
     tx->chit = 0;
     tx->confidence = 0;
     for (auto &it : tx->parents)
@@ -66,7 +62,6 @@ TxPtr Node::onSendTx(UUID &id)
 {
     auto it = transactions.find(id);
     assert(it != transactions.end());
-    cout << "N" << node_id << " onSendTx: " << *it->second << endl;
     return make_shared<Tx>(*it->second);
 }
 
@@ -105,6 +100,7 @@ string dump_txs(const tsl::ordered_map<UUID, TxPtr, boost::hash<UUID>> &txs)
     ss << "}";
     return ss.str();
 }
+
 string dump_txset(const TxSet &txs)
 {
     ostringstream ss;
@@ -286,16 +282,9 @@ vector<TxPtr> Node::parentSelection()
                 tx3.push_back(e);
         }
         sample(tx3.begin(), tx3.end(), back_inserter(fallback), 3, network->rng);
-        //  shuffle(tx3.begin(), tx3.end(), network->rng);
-        //  copy(tx3.begin(), tx3.begin() + (tx3.size() > 3 ? 3 : tx3.size()), back_inserter(fallback));
     }
 
     assert(!(parents.empty() && fallback.empty()));
-    cout << "E0=" << E0
-         << " E1=" << E1
-         << " P=" << parents
-         << " F=" << fallback << endl;
-
     if (!parents.empty())
         return parents;
     return fallback;

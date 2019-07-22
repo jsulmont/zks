@@ -11,7 +11,7 @@ struct Parameters
     int k = 1 + num_nodes / 10;
     int beta1 = 5;
     int beta2 = 5;
-    unsigned long seed = 23L;
+    unsigned long seed = 12345L;
     bool dump_dags = false;
     bool verbose = false;
 };
@@ -31,8 +31,8 @@ parse_options(int argc, char *argv[])
         options.add_options()("k,sample-size", "The sample size (default `1 + nrNodes / 10`)", cxxopts::value<int>());
         options.add_options()("n,num-transactions", "nunber of tx to generate", cxxopts::value<int>()->default_value("20"));
         options.add_options()("num-nodes", "number of nodes to simulate", cxxopts::value<int>()->default_value("50"));
-        options.add_options()("seed", "seed random generation", cxxopts::value<int>()->default_value("23"));
-        options.add_options()("dump-dags", "dump dags in dot format", cxxopts::value<int>()->default_value("false"));
+        options.add_options()("seed", "seed random generation", cxxopts::value<int>()->default_value("12345"));
+        options.add_options()("dump-dags", "dump dags in dot format", cxxopts::value<bool>(p.dump_dags));
 
         auto result = options.parse(argc, argv);
 
@@ -59,6 +59,8 @@ parse_options(int argc, char *argv[])
             p.num_transactions = result["num-transactions"].as<int>();
         if (result.count("seed"))
             p.seed = result["seed"].as<int>();
+        if (result.count("dump-dags"))
+            p.dump_dags = true;
     }
     catch (const cxxopts::OptionException &e)
     {
