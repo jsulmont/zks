@@ -41,7 +41,7 @@ add_executable(
         main.cpp
     )
 add_sanitizers(zks)
-target_include_directories(zks INTERFACE ${Boost_INCLUDE_DIRS})
+target_include_directories(zks INTERFACE ${Boost_INCLUDE_DIR})
 
 
 find_program(CLANG_FORMAT
