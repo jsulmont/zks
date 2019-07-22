@@ -65,13 +65,13 @@ int main(int argc, char **argv)
    for (auto &[v, l] : conflict_sets)
       if (l.size() == 2)
       {
-         auto tx1_anynode{[&]() {
+         auto tx1_anynode{[&, l = l]() {
             for (auto &n : net.nodes)
                if (n->isAccepted(l[0]))
                   return true;
             return false;
          }()};
-         auto tx2_anynode{[&]() {
+         auto tx2_anynode{[&, l = l]() {
             for (auto &n : net.nodes)
                if (n->isAccepted(l[1]))
                   return true;
