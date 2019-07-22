@@ -27,14 +27,23 @@ UTXO are simulated as integers, ranging from `0` to `parameters.num_transactions
 The program is able to simulate the double spending problem by randomly emitting "an already" spent transaction (i.e., re-emmiting a transaction for an value already used), thus creating a conflicting transaction. At the end of the simulation, for each conflicting transactions `tx1` and `tx2` the program checks that either only one or none (i.e., not both) of the conflicting transactions have been accepted by all the nodes (cf. paper). Accepted transactions are printed within brackets.
 
 
-
 ## to build (assuming you've cloned this repo)
+You need `cmake` to build this:
+```
+brew install cmake
+```
+or 
+```
+apt-get install cmake
+```
+then
 ```
 git submodule update --init
 make re build docker
 ```
 
 ## how to run
+
 ```
 zeus% docker run --rm jansulmont/zks --help
  - simulation for the avalanche protocol
