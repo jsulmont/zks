@@ -23,4 +23,4 @@ docker:
 
 
 docker-run:
-	docker run --rm jansulmont/zks
+	docker run -v ${PWD}:/data --rm jansulmont/zks

@@ -9,4 +9,6 @@ FROM alpine:3.10
 RUN mkdir app
 COPY --from=builder /src/build/zks /app/zks
 RUN apk add --no-cache libstdc++
+WORKDIR /data
+VOLUME [ '/data' ]
 ENTRYPOINT ["/app/zks"]
