@@ -9,7 +9,7 @@ brew install dot
 In these graph, each vertice is labelled with the triplet `<data, chit, confidence>`, and accepted transactions are displayed as lightblue/filled labels. Transactions which are `prefered` have an `*` appended to their value. The `chit` is display as `0` or `1`, or `?` when the transaction hasn't been queried by the node.
 
 ## UTXO
-UTXO are simulated with an integers, ranging from `0` to `parameters.num_transactions`.
+UTXO are simulated as integers, ranging from `0` to `parameters.num_transactions`.
 The program is able to simulate the double spending problem by randomly emitting "an already" spent transaction (i.e., re-emmiting a transaction for an value already used), thus creating a conflicting transaction. At the end of the simulation, for each conflicting transactions `tx1` and `tx2` the program checks that either only one or none (i.e., not both) of the conflicting transactions have been accepted by the consensus by all the nodes (cf. paper). Accepted transactions are printed within brackets.
 
 
