@@ -49,8 +49,7 @@ void Node::onReceiveTx(Node &sender, TxPtr &tx)
         return;
     tx->chit = 0;
     tx->confidence = 0;
-    BOOST_LOG_TRIVIAL(trace) <<
-      "resetting confidence to 0 for tx=" << tx->strid;
+    BOOST_LOG_TRIVIAL(trace) << "resetting confidence to 0 for tx=" << tx->strid;
     for (auto &it : tx->parents)
         if (transactions.find(it) == transactions.end())
         {
@@ -277,6 +276,13 @@ vector<TxPtr> Node::parentSelection()
             if (find(E1.begin(), E1.end(), jt) == E1.end())
                 parents.push_back(jt);
 
+    /*
+     transactions.values.reversed()
+     .take(10).filter { !isAccepted(it) && conflicts[it.data]!!.size == 1 }
+     .shuffled(network.rng)
+     .take(3)
+     */
+
     vector<TxPtr> fallback;
     if (transactions.size() == 1)
         fallback.push_back(tx_genesis);
@@ -291,7 +297,7 @@ vector<TxPtr> Node::parentSelection()
         {
             auto c = conflicts.find(e->data);
             assert(c != conflicts.end());
-            if (c->second.size == 1)
+            if (!isAccepted(e) && c->second.size == 1)
                 tx3.push_back(e);
         }
         shuffle(tx3.begin(), tx3.end(), network->rng);
@@ -302,7 +308,7 @@ vector<TxPtr> Node::parentSelection()
     //BOOST_LOG_TRIVIAL(trace)
     cout
         // << "N" << node_id
-        << " E0=" << E0
+        << "E0=" << E0
         << " E1=" << E1
         << " P=" << parents
         << " F=" << fallback << endl;

@@ -28,7 +28,6 @@ int main()
       c1.push_back(n->onGenerateTx(i));
 
       // random double spend
-      auto x = next_double(net.rng);
       if (next_double(net.rng) < p.double_spend_ratio)
       {
          auto d = uniform_int_distribution<int>(0, i)(net.rng);
@@ -44,7 +43,7 @@ int main()
       if (p.dump_dags)
       {
          ostringstream ss;
-         ss << boost::format("node-0-%03d.dot") % i;
+         ss << boost::format("znode-0-%03d.dot") % i;
          n1->dumpDag(ss.str());
       }
       cout << i << ":  " << n1->fractionAccepted() << endl;
