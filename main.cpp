@@ -1,18 +1,22 @@
 #include <list>
 #include <iostream>
 #include <random>
+#include "cxxopts.hpp"
 #include "boost/format.hpp"
 #include <boost/log/trivial.hpp>
 
 #include "avalanche.hpp"
 
 using namespace std;
-vector<int> N{0, 1};
-int main()
+
+// vector<int> N{0, 1};
+extern Parameters parse_options(int, char **);
+int main(int argc, char **argv)
 {
-   Parameters p;
+   Parameters p = parse_options(argc, argv);
+
    Network net(p);
-   cout << "GENESIS=" << net.genesis.strid << endl;
+
    auto &n1 = net.nodes[0];
    uniform_real_distribution<double> next_double(0.0, 1.0);
    list<TxPtr> c1, c2;
