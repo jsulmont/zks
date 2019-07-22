@@ -1,4 +1,5 @@
-CXX = clang++ -std=c++17
+CXX = clang++ -std=c++2a
+# CXX = g++-9 -std=c++17
 CXXFLAGS = -DBOOST_LOG_DYN_LINK  -g -Wall
 all: zks.exe
 

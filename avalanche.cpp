@@ -41,14 +41,13 @@ TxPtr Node::onGenerateTx(int data)
 
 void Node::onReceiveTx(Node &sender, TxPtr &tx)
 {
-    cout << "N" << node_id << " onReceiveTx: from=N" << sender.node_id
-         << " tx=" << *tx << endl;
     auto it = transactions.find(tx->id);
     if (it != transactions.end())
         return;
+    cout << "N" << node_id << " onReceiveTx: from=N" << sender.node_id
+         << " tx=" << *tx << endl;
     tx->chit = 0;
     tx->confidence = 0;
-    // cout << "resetting confidence to 0 for tx=" << tx->strid << endl;
     for (auto &it : tx->parents)
         if (transactions.find(it) == transactions.end())
         {
@@ -125,10 +124,12 @@ void Node::avalancheLoop()
             continue;
 
         // line 4.4:  K := sample(N \u, k)
-        vector<shared_ptr<Node>> K{network->nodes};
-        auto jt(remove_if(K.begin(), K.end(), [this](auto &it) { return it.get() == this; }));
-        K.erase(jt);
-        shuffle(K.begin(), K.end(), network->rng);
+        vector<shared_ptr<Node>> K;
+        {
+            auto n = network->nodes;
+            auto r(remove_if(n.begin(), n.end(), [this](auto &it) { return it.get() == this; }));
+            sample(n.begin(), r, back_inserter(K), params.k, network->rng);
+        }
 
         // line 4.5: P := Σ_(v∈K) query(v,T)
         int P = 0;
@@ -144,18 +145,10 @@ void Node::avalancheLoop()
         {
             // line 4.7: cT :=1
             T->chit = 1;
-            auto ancestors = parentSet(T);
-            cout << "N" << node_id
-                 << " data=" << T->data << "  ancestors=" << dump_txset(ancestors) << endl;
             // update the preference for ancestors
             // line 4.9:  for T′∈ T: T′←∗ T  do
-            for (auto Tp : ancestors)
+            for (auto Tp : parentSet(T))
             {
-                // [](const TxPtr *tp) { const_cast<TxPtr *>(tp)->confidence++; }(Tp);
-                if (Tp == genesis)
-                {
-                    cout << "N" << node_id << " bumping genesis" << endl;
-                }
                 Tp->confidence++;
                 auto cs = conflicts.find(Tp->data);
                 assert(cs != conflicts.end());
@@ -292,8 +285,9 @@ vector<TxPtr> Node::parentSelection()
             if (!isAccepted(e) && c->second.size == 1)
                 tx3.push_back(e);
         }
-        shuffle(tx3.begin(), tx3.end(), network->rng);
-        copy(tx3.begin(), tx3.begin() + (tx3.size() > 3 ? 3 : tx3.size()), back_inserter(fallback));
+        sample(tx3.begin(), tx3.end(), back_inserter(fallback), 3, network->rng);
+        //  shuffle(tx3.begin(), tx3.end(), network->rng);
+        //  copy(tx3.begin(), tx3.begin() + (tx3.size() > 3 ? 3 : tx3.size()), back_inserter(fallback));
     }
 
     assert(!(parents.empty() && fallback.empty()));

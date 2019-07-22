@@ -105,8 +105,8 @@ class ConflictSet
 {
 public:
     TxPtr pref = 0, last = 0;
-    size_t count, size;
-    ConflictSet(const TxPtr pref, const TxPtr last, size_t count = 0, size_t size = 0)
+    int count, size;
+    ConflictSet(const TxPtr pref, const TxPtr last, int count = 0, int size = 0)
         : pref(pref), last(last), count(count), size(size) {}
     ConflictSet(const ConflictSet &cs)
         : pref(cs.pref), last(cs.last), count(cs.count), size(cs.size) {}

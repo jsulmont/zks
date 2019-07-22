@@ -22,13 +22,12 @@ int main()
    {
       // pic a random node.
       std::uniform_int_distribution<int> dist(0, net.nodes.size() - 1);
-      //      auto &n = net.nodes[dist(net.rng)];
-      auto &n = net.nodes[N[i % N.size()]];
+      auto &n = net.nodes[dist(net.rng)];
+      // auto &n = net.nodes[N[i % N.size()]];
 
       // send a transaction
       c1.push_back(n->onGenerateTx(i));
 
-      // random double spend
       if (next_double(net.rng) < p.double_spend_ratio)
       {
          auto d = uniform_int_distribution<int>(0, i)(net.rng);
@@ -48,12 +47,5 @@ int main()
          n1->dumpDag(ss.str());
       }
       cout << i << ":  " << n1->fractionAccepted() << endl;
-#if 0
-      for (auto &N : net.nodes)
-         for (auto it = N->transactions.rbegin(); it < N->transactions.rend(); it++)
-         {
-            cerr << "R:" << i << " N:" << N->node_id << " " << it->second << endl;
-         }
-#endif
    }
 }
