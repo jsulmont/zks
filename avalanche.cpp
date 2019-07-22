@@ -1,7 +1,7 @@
 #include <fstream>
 #include <algorithm>
 #include <boost/format.hpp>
-#include <boost/log/trivial.hpp>
+// #include <boost/log/trivial.hpp>
 #include "avalanche.hpp"
 
 using namespace std;
@@ -34,22 +34,21 @@ TxPtr Node::onGenerateTx(int data)
               back_inserter(parent_uuids),
               [](auto t) -> UUID { return t->id; });
     auto t = make_shared<Tx>(data, parent_uuids);
-    BOOST_LOG_TRIVIAL(trace) << "N" << node_id << " onGenerateTx: " << *t;
+    cout << "N" << node_id << " onGenerateTx: " << *t << endl;
     onReceiveTx(*this, t);
     return t;
 }
 
 void Node::onReceiveTx(Node &sender, TxPtr &tx)
 {
-    BOOST_LOG_TRIVIAL(trace)
-        << "N" << node_id << " onReceiveTx: from=N" << sender.node_id
-        << " tx=" << *tx;
+    cout << "N" << node_id << " onReceiveTx: from=N" << sender.node_id
+         << " tx=" << *tx << endl;
     auto it = transactions.find(tx->id);
     if (it != transactions.end())
         return;
     tx->chit = 0;
     tx->confidence = 0;
-    BOOST_LOG_TRIVIAL(trace) << "resetting confidence to 0 for tx=" << tx->strid;
+    // cout << "resetting confidence to 0 for tx=" << tx->strid << endl;
     for (auto &it : tx->parents)
         if (transactions.find(it) == transactions.end())
         {
@@ -68,8 +67,7 @@ TxPtr Node::onSendTx(UUID &id)
 {
     auto it = transactions.find(id);
     assert(it != transactions.end());
-    BOOST_LOG_TRIVIAL(trace)
-        << "N" << node_id << " onSendTx: " << *it->second;
+    cout << "N" << node_id << " onSendTx: " << *it->second << endl;
     return make_shared<Tx>(*it->second);
 }
 
@@ -119,20 +117,18 @@ void Node::avalancheLoop()
             continue;
 
         // line 4.4:  K := sample(N \u, k)
-        vector<shared_ptr<Node>> K;
-        K.resize(params.k);
-        {
-            auto tmp{network->nodes};
-            auto it(remove_if(tmp.begin(), tmp.end(), [this](auto &it) { return it.get() == this; }));
-            tmp.erase(it);
-            shuffle(tmp.begin(), tmp.end(), network->rng);
-            copy_n(tmp.begin(), params.k, K.begin());
-        }
+        vector<shared_ptr<Node>> K{network->nodes};
+        auto jt(remove_if(K.begin(), K.end(), [this](auto &it) { return it.get() == this; }));
+        K.erase(jt);
+        shuffle(K.begin(), K.end(), network->rng);
 
         // line 4.5: P := Σ_(v∈K) query(v,T)
         int P = 0;
         for (auto &n : K)
-            P += n->onQuery(*this, T);
+        {
+            auto newtx = make_shared<Tx>(*T);
+            P += n->onQuery(*this, newtx);
+        }
 
         // block for line 4.6 to 4.15
         // line 4.6:  if P ≥ α·k then
@@ -276,16 +272,9 @@ vector<TxPtr> Node::parentSelection()
             if (find(E1.begin(), E1.end(), jt) == E1.end())
                 parents.push_back(jt);
 
-    /*
-     transactions.values.reversed()
-     .take(10).filter { !isAccepted(it) && conflicts[it.data]!!.size == 1 }
-     .shuffled(network.rng)
-     .take(3)
-     */
-
     vector<TxPtr> fallback;
     if (transactions.size() == 1)
-        fallback.push_back(tx_genesis);
+        fallback.push_back(genesis);
     else
     {
         vector<TxPtr> tx10;
@@ -305,13 +294,10 @@ vector<TxPtr> Node::parentSelection()
     }
 
     assert(!(parents.empty() && fallback.empty()));
-    //BOOST_LOG_TRIVIAL(trace)
-    cout
-        // << "N" << node_id
-        << "E0=" << E0
-        << " E1=" << E1
-        << " P=" << parents
-        << " F=" << fallback << endl;
+    cout << "E0=" << E0
+         << " E1=" << E1
+         << " P=" << parents
+         << " F=" << fallback << endl;
 
     if (!parents.empty())
         return parents;

@@ -12,7 +12,7 @@ int main()
 {
    Parameters p;
    Network net(p);
-   cout << "GENESIS=" << net.tx_genesis.strid << endl;
+   cout << "GENESIS=" << net.genesis.strid << endl;
    auto &n1 = net.nodes[0];
    uniform_real_distribution<double> next_double(0.0, 1.0);
    list<TxPtr> c1, c2;

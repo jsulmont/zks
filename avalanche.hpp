@@ -129,14 +129,15 @@ class Node
 {
 public:
     Node(int id, Parameters const &params,
-         Network *network, Tx &genesis)
-        : node_id(id), params(params), network(network)
+         Network *network, Tx &tx_genesis)
+        : node_id(id), params(params), network(network),
+          genesis(std::make_shared<Tx>(tx_genesis))
     {
-        tx_genesis = std::make_shared<Tx>(genesis);
-        transactions.insert({tx_genesis->id, tx_genesis});
-        queried.insert(tx_genesis->id);
-        conflicts.insert({tx_genesis->data, ConflictSet{tx_genesis, tx_genesis, 0, 1}});
-        accepted.insert(tx_genesis->id);
+        transactions.insert({genesis->id, genesis});
+        queried.insert(genesis->id);
+        accepted.insert(genesis->id);
+        conflicts.insert({genesis->data, ConflictSet{genesis, genesis, 0, 1}});
+        parentSets.insert({genesis->id, {}});
     }
 
     TxPtr onGenerateTx(int);
@@ -158,7 +159,7 @@ public:
 
     Parameters params;
     Network *network;
-    TxPtr tx_genesis;
+    TxPtr genesis;
     tsl::ordered_map<UUID, TxPtr, boost::hash<UUID>> transactions;
     std::set<UUID> queried, accepted;
     std::map<int, ConflictSet> conflicts; // TODO UTXO
@@ -169,10 +170,10 @@ class Network
 {
 public:
     Network(Parameters const &params)
-        : params(params), rng(params.seed), tx_genesis(-1, {}, 1)
+        : params(params), rng(params.seed), genesis(-1, {}, 1)
     {
         for (auto i = 0; i <= params.num_nodes; i++)
-            nodes.push_back(std::make_shared<Node>(Node(i, params, this, tx_genesis)));
+            nodes.push_back(std::make_shared<Node>(Node(i, params, this, genesis)));
     }
 
     void run()
@@ -184,7 +185,7 @@ public:
     // private:
     Parameters params;
     std::mt19937_64 rng;
-    Tx tx_genesis; // genesis tx
+    Tx genesis; // genesis tx
     std::vector<std::shared_ptr<Node>> nodes;
     Network(Network const &) = delete;
     Network &operator=(Network const &) = delete;
