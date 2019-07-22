@@ -25,8 +25,8 @@ parse_options(int argc, char *argv[])
         cxxopts::Options options(argv[0], " - simulation for the avalanche protocol");
         options.add_options()("h,help", "display help and exit");
         options.add_options()("a,alpha", "The alpha parameter", cxxopts::value<double>()->default_value("0.8"));
-        options.add_options()("beta1", "The beta1 parameter", cxxopts::value<double>()->default_value("0.8"));
-        options.add_options()("beta2", "The beta2 parameter", cxxopts::value<double>()->default_value("0.8"));
+        options.add_options()("beta1", "The beta1 parameter", cxxopts::value<int>()->default_value("5"));
+        options.add_options()("beta2", "The beta2 parameter", cxxopts::value<int>()->default_value("5"));
         options.add_options()("d,double-spend-ratio", "The double spend ratio", cxxopts::value<double>()->default_value("0.02"));
         options.add_options()("k,sample-size", "The sample size (default `1 + nrNodes / 10`)", cxxopts::value<int>());
         options.add_options()("n,num-transactions", "nunber of tx to generate", cxxopts::value<int>()->default_value("20"));
@@ -44,9 +44,9 @@ parse_options(int argc, char *argv[])
         if (result.count("alpha"))
             p.alpha = result["alpha"].as<double>();
         if (result.count("beta1"))
-            p.beta1 = result["beta1"].as<double>();
+            p.beta1 = result["beta1"].as<int>();
         if (result.count("beta2"))
-            p.beta2 = result["beta2"].as<double>();
+            p.beta2 = result["beta2"].as<int>();
         if (result.count("double-spend-ratio"))
             p.double_spend_ratio = result["double-spend-ratio"].as<double>();
         if (result.count("num-nodes"))
