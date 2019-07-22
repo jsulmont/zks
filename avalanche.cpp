@@ -5,24 +5,6 @@
 
 using namespace std;
 
-string prtx(const TxPtr &tx)
-{
-    ostringstream ss;
-    ss << "T(" << tx->strid
-       << ", data=" << tx->data << ")";
-    return ss.str();
-}
-
-string prtxs(const list<TxPtr> &txs)
-{
-    ostringstream ss;
-    ss << "[";
-    for_each(txs.begin(), txs.end(),
-             [&](auto &it) { ss << it << ","; });
-    ss << "]";
-    return ss.str();
-}
-
 TxPtr Node::onGenerateTx(int data)
 {
 
@@ -229,14 +211,6 @@ bool Node::isAccepted(const TxPtr &tx)
     if (rc)
         accepted.insert(tx->id);
     return rc;
-}
-
-ostream &operator<<(ostream &out, const vector<TxPtr> &st)
-{
-    out << "[";
-    for_each(st.begin(), st.end(), [&](auto &e) { out << e->strid << ","; });
-    out << "]";
-    return out;
 }
 
 vector<TxPtr> Node::parentSelection()
