@@ -17,3 +17,10 @@ cmake: dbgcmake
 re:
 	rm -rf build && mkdir build
 	cd build && cmake ..
+
+docker:
+	docker build -t jansulmont/zks .
+
+
+docker-run:
+	docker run --rm jansulmont/zks
