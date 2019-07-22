@@ -17,6 +17,9 @@ find_package(Boost
              COMPONENTS system
              REQUIRED)
 
+include_directories(SYSTEM ${Boost_INCLUDE_DIR})
+link_directories(${Boost_LIBRARY_DIR})
+
 find_program(CCACHE_FOUND ccache)
 if (CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
@@ -41,7 +44,6 @@ add_executable(
         main.cpp
     )
 add_sanitizers(zks)
-target_include_directories(zks INTERFACE ${Boost_INCLUDE_DIR})
 
 
 find_program(CLANG_FORMAT
