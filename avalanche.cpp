@@ -106,7 +106,15 @@ string dump_txs(const tsl::ordered_map<UUID, TxPtr, boost::hash<UUID>> &txs)
     ss << "}";
     return ss.str();
 }
-
+string dump_txset(const TxSet &txs)
+{
+    ostringstream ss;
+    ss << "{";
+    for_each(txs.begin(), txs.end(),
+             [&](auto &it) { ss << "data=" << it->data << ","; });
+    ss << "}";
+    return ss.str();
+}
 void Node::avalancheLoop()
 {
     for (auto it = transactions.begin(); it != transactions.end(); ++it)
@@ -137,12 +145,17 @@ void Node::avalancheLoop()
             // line 4.7: cT :=1
             T->chit = 1;
             auto ancestors = parentSet(T);
-
+            cout << "N" << node_id
+                 << " data=" << T->data << "  ancestors=" << dump_txset(ancestors) << endl;
             // update the preference for ancestors
             // line 4.9:  for T′∈ T: T′←∗ T  do
             for (auto Tp : ancestors)
             {
                 // [](const TxPtr *tp) { const_cast<TxPtr *>(tp)->confidence++; }(Tp);
+                if (Tp == genesis)
+                {
+                    cout << "N" << node_id << " bumping genesis" << endl;
+                }
                 Tp->confidence++;
                 auto cs = conflicts.find(Tp->data);
                 assert(cs != conflicts.end());
@@ -169,29 +182,19 @@ TxSet Node::parentSet(const TxPtr &tx)
 {
     if (auto it = parentSets.find(tx->id); it != parentSets.end())
         return it->second;
-
     vector<TxPtr> parents;
     set<UUID> ps(tx->parents.begin(), tx->parents.end());
     while (!ps.empty())
     {
         for (auto &it : ps)
-        {
-            auto x = transactions.find(it);
-            if (x != transactions.end())
+            if (auto x = transactions.find(it); x != transactions.end())
                 parents.push_back(x->second);
-        }
-        list<UUID> new_ps;
-        auto out = new_ps.begin();
-        for (auto it = ps.begin(); it != ps.end(); it++)
-        {
-            auto jt = transactions.find(*it);
-            if (jt != transactions.end())
-            {
-                auto p = jt->second->parents;
-                copy(p.begin(), p.end(), out);
-            }
-        }
-        ps = set<UUID>(new_ps.begin(), new_ps.end());
+        set<UUID> nps;
+        for (auto &id : ps)
+            if (auto ptr = transactions.find(id); ptr != transactions.end())
+                for (auto &oid : ptr->second->parents)
+                    nps.insert(oid);
+        ps = nps;
     }
     TxSet rc(parents.begin(), parents.end());
     parentSets[tx->id] = rc;
