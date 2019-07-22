@@ -1,6 +1,7 @@
 #include <list>
 #include <iostream>
 #include <random>
+#include "cxxopts.hpp"
 #include "boost/format.hpp"
 #include <boost/log/trivial.hpp>
 
@@ -8,14 +9,17 @@
 
 using namespace std;
 
-int main()
+// vector<int> N{0, 1};
+extern Parameters parse_options(int, char **);
+int main(int argc, char **argv)
 {
-   Parameters p;
+   Parameters p = parse_options(argc, argv);
+
    Network net(p);
-   cout << "GENESIS=" << net.tx_genesis.strid << endl;
+
    auto &n1 = net.nodes[0];
    uniform_real_distribution<double> next_double(0.0, 1.0);
-   list<Tx> c1, c2;
+   list<TxPtr> c1, c2;
 
    // simulate a client
    for (auto i = 0; i < p.num_transactions; i++)
@@ -23,11 +27,11 @@ int main()
       // pic a random node.
       std::uniform_int_distribution<int> dist(0, net.nodes.size() - 1);
       auto &n = net.nodes[dist(net.rng)];
+      // auto &n = net.nodes[N[i % N.size()]];
 
       // send a transaction
       c1.push_back(n->onGenerateTx(i));
 
-      // random double spend
       if (next_double(net.rng) < p.double_spend_ratio)
       {
          auto d = uniform_int_distribution<int>(0, i)(net.rng);
@@ -43,14 +47,9 @@ int main()
       if (p.dump_dags)
       {
          ostringstream ss;
-         ss << boost::format("node-0-%03d.dot") % i;
+         ss << boost::format("znode-0-%03d.dot") % i;
          n1->dumpDag(ss.str());
       }
       cout << i << ":  " << n1->fractionAccepted() << endl;
-      for (auto &N : net.nodes)
-         for (auto it = N->transactions.rbegin(); it < N->transactions.rend(); it++)
-         {
-            cerr << "R:" << i << " N:" << N->node_id << " " << it->second << endl;
-         }
    }
 }

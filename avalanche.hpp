@@ -39,13 +39,13 @@ struct Tx
         strid = boost::uuids::to_string(id).substr(0, 5);
     }
 
-    Tx(Tx const &tx)
+    Tx(Tx &tx)
         : id(tx.id), data(tx.data), parents(tx.parents),
           chit(tx.chit), confidence(tx.confidence), strid(tx.strid)
     {
     }
 
-    Tx(Tx const &&tx)
+    Tx(Tx &&tx)
         : id(std::move(tx.id)), data(tx.data), parents(std::move(tx.parents)),
           chit(tx.chit), confidence(tx.confidence), strid(tx.strid)
     {
@@ -98,10 +98,29 @@ inline std::string Tx::to_string() const
     return ss.str();
 }
 
-struct ConflictSet
+using TxPtr = std::shared_ptr<Tx>;
+using TxSet = std::set<TxPtr>;
+
+class ConflictSet
 {
-    Tx pref, last;
-    size_t count, size;
+public:
+    TxPtr pref = 0, last = 0;
+    int count, size;
+    ConflictSet(const TxPtr pref, const TxPtr last, int count = 0, int size = 0)
+        : pref(pref), last(last), count(count), size(size) {}
+    ConflictSet(const ConflictSet &cs)
+        : pref(cs.pref), last(cs.last), count(cs.count), size(cs.size) {}
+    ConflictSet &operator=(ConflictSet &cs)
+    {
+        pref = cs.pref;
+        last = cs.pref;
+        count = cs.count;
+        size = cs.size;
+        return *this;
+    }
+
+private:
+    ConflictSet();
 };
 
 class Network;
@@ -110,51 +129,51 @@ class Node
 {
 public:
     Node(int id, Parameters const &params,
-         Network *network, Tx &genesis)
-        : node_id(id), params(params), network(network), tx_genesis(genesis)
+         Network *network, Tx &tx_genesis)
+        : node_id(id), params(params), network(network),
+          genesis(std::make_shared<Tx>(tx_genesis))
     {
-        transactions.insert({tx_genesis.id, tx_genesis});
-        queried.insert(tx_genesis.id);
-        conflicts.insert({tx_genesis.data, ConflictSet{tx_genesis, tx_genesis, 0, 1}});
-        accepted.insert(tx_genesis.id);
-        // parentSets.insert({tx_genesis.id, {}});
-        // BOOST_LOG_TRIVIAL(debug) << "NODE=" << node_id << " genesis=" << tx_genesis.strid;
+        transactions.insert({genesis->id, genesis});
+        queried.insert(genesis->id);
+        accepted.insert(genesis->id);
+        conflicts.insert({genesis->data, ConflictSet{genesis, genesis, 0, 1}});
+        parentSets.insert({genesis->id, {}});
     }
 
-    Tx onGenerateTx(int);
-    void onReceiveTx(Node &, Tx &);
-    Tx onSendTx(UUID &);
-    int onQuery(Node &, Tx &);
+    TxPtr onGenerateTx(int);
+    void onReceiveTx(Node &, TxPtr &);
+    TxPtr onSendTx(UUID &);
+    int onQuery(Node &, TxPtr &);
     void avalancheLoop();
-    std::set<Tx> parentSelection();
+    std::vector<TxPtr> parentSelection();
     double fractionAccepted();
     void dumpDag(const std::string &);
 
     int node_id;
 
     //private:
-    std::set<Tx> parentSet(Tx);
-    bool isPrefered(Tx);
-    bool isStronglyPrefered(Tx);
-    bool isAccepted(Tx);
+    TxSet parentSet(const TxPtr &);
+    bool isPrefered(const TxPtr &);
+    bool isStronglyPrefered(const TxPtr &);
+    bool isAccepted(const TxPtr &);
 
     Parameters params;
     Network *network;
-    Tx tx_genesis;
-    tsl::ordered_map<UUID, Tx, boost::hash<UUID>> transactions;
+    TxPtr genesis;
+    tsl::ordered_map<UUID, TxPtr, boost::hash<UUID>> transactions;
     std::set<UUID> queried, accepted;
-    std::map<int, ConflictSet> conflicts;
-    std::map<UUID, std::set<Tx>> parentSets;
+    std::map<int, ConflictSet> conflicts; // TODO UTXO
+    std::map<UUID, TxSet> parentSets;
 };
 
 class Network
 {
 public:
     Network(Parameters const &params)
-        : params(params), rng(params.seed), tx_genesis(-1, {}, 1)
+        : params(params), rng(params.seed), genesis(-1, {}, 1)
     {
         for (auto i = 0; i <= params.num_nodes; i++)
-            nodes.push_back(std::make_shared<Node>(Node(i, params, this, tx_genesis)));
+            nodes.push_back(std::make_shared<Node>(Node(i, params, this, genesis)));
     }
 
     void run()
@@ -166,7 +185,7 @@ public:
     // private:
     Parameters params;
     std::mt19937_64 rng;
-    Tx tx_genesis; // genesis tx
+    Tx genesis; // genesis tx
     std::vector<std::shared_ptr<Node>> nodes;
     Network(Network const &) = delete;
     Network &operator=(Network const &) = delete;
