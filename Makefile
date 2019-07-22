@@ -1,17 +1,19 @@
-CXX = clang++ -std=c++17
-# CXX = g++-9 -std=c++17
-CXXFLAGS = -g -Wall
-all: zks.exe
-
-zks.exe: main.o avalanche.o
-	$(CXX) -o zks.exe main.o avalanche.o 
-
-avalanche.o: avalanche.cpp avalanche.hpp parameters.hpp
-	$(CXX) $(CXXFLAGS) -c avalanche.cpp
-
-main.o: main.cpp avalanche.hpp parameters.hpp
-	$(CXX) $(CXXFLAGS) -c main.cpp
+all:
+	make -C build all
 
 clean:
-	$(RM) *.o zks.exe
+	make -C build clean
 
+relcmake:
+	rm -rf build && mkdir build
+	cd build && cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+
+dbgcmake:
+	rm -rf build && mkdir build
+	cd build && cmake -DCMAKE_BUILD_TYPE=Debug -DSANITIZE_ADDRESS=ON ..
+
+cmake: dbgcmake
+
+re:
+	rm -rf build && mkdir build
+	cd build && cmake ..
