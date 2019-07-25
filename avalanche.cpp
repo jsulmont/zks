@@ -123,6 +123,7 @@ void Node::avalancheLoop()
         {
             // line 4.7: cT :=1
             T->chit = 1;
+
             // update the preference for ancestors
             // line 4.9:  for T′∈ T: T′←∗ T  do
             for (auto Tp : parentSet(T))

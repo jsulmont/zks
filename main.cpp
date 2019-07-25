@@ -1,15 +1,12 @@
 #include <list>
-#include <iostream>
 #include <random>
-#include "cxxopts.hpp"
-#include "boost/format.hpp"
-#include <boost/log/trivial.hpp>
+#include <iostream>
+#include <boost/format.hpp>
 
+#include "cxxopts.hpp"
 #include "avalanche.hpp"
 
 using namespace std;
-
-// vector<int> N{0, 1};
 
 extern Parameters parse_options(int, char **);
 
@@ -26,6 +23,7 @@ int main(int argc, char **argv)
    // simulate a client
    for (auto i = 0; i < p.num_transactions; i++)
    {
+
       // pic a random node.
       std::uniform_int_distribution<int> dist(0, net.nodes.size() - 1);
       auto &n = net.nodes[dist(net.rng)];
@@ -36,6 +34,7 @@ int main(int argc, char **argv)
 
       if (next_double(net.rng) < p.double_spend_ratio)
       {
+         // generate a double spend
          auto d = uniform_int_distribution<int>(0, i)(net.rng);
          cout << "double spend of " << d << endl;
          auto nodes = net.nodes;

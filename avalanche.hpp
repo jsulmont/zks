@@ -1,23 +1,21 @@
 #pragma once
-#include <list>
 #include <set>
 #include <map>
-#include <algorithm>
+#include <list>
 #include <random>
-#include <sstream>
 #include <memory>
 #include <vector>
+#include <sstream>
 #include <iostream>
+#include <algorithm>
 #include <unordered_map>
-
-#include <boost/functional/hash.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <boost/functional/hash.hpp>
 #include <boost/uuid/uuid_generators.hpp>
-#include <boost/log/trivial.hpp>
 
-#include "tsl/ordered_map.h"
 #include "parameters.hpp"
+#include "tsl/ordered_map.h"
 
 using UUID = boost::uuids::uuid;
 
@@ -63,7 +61,12 @@ struct Tx
                chit == tx.chit && confidence == tx.confidence;
     }
 
-    Tx &operator=(Tx const &tx)
+    bool operator!=(Tx const &tx) const
+    {
+        return id != tx.id;
+    }
+
+    Tx &operator=(Tx &&tx)
     {
         id = std::move(tx.id);
         data = std::move(tx.data);
@@ -71,11 +74,6 @@ struct Tx
         chit = std::move(tx.chit);
         confidence = std::move(tx.confidence);
         return *this;
-    }
-
-    bool operator!=(Tx const &tx) const
-    {
-        return id != tx.id;
     }
 
     friend std::ostream &operator<<(std::ostream &out, Tx const &tx)
@@ -101,16 +99,23 @@ inline std::string Tx::to_string() const
 using TxPtr = std::shared_ptr<Tx>;
 using TxSet = std::set<TxPtr>;
 
-class ConflictSet
+struct ConflictSet
 {
-public:
     TxPtr pref = 0, last = 0;
     int count, size;
-    ConflictSet(const TxPtr pref, const TxPtr last, int count = 0, int size = 0)
+
+    ConflictSet(ConflictSet &&cs)
+        : pref(std::move(cs.pref)), last(std::move(cs.last)), count(std::move(cs.count)), size(std::move(cs.size))
+    {
+    }
+
+    ConflictSet(const TxPtr &pref, const TxPtr &last, int count = 0, int size = 0)
         : pref(pref), last(last), count(count), size(size) {}
+
     ConflictSet(const ConflictSet &cs)
         : pref(cs.pref), last(cs.last), count(cs.count), size(cs.size) {}
-    ConflictSet &operator=(ConflictSet &cs)
+
+    ConflictSet &operator=(const ConflictSet &cs)
     {
         pref = cs.pref;
         last = cs.pref;
@@ -119,8 +124,15 @@ public:
         return *this;
     }
 
-private:
-    ConflictSet();
+    ConflictSet &operator=(ConflictSet &&cs)
+    {
+        pref = std::move(cs.pref);
+        last = std::move(cs.pref);
+        count = std::move(cs.count);
+        size = std::move(cs.size);
+        return *this;
+    }
+    ConflictSet() = delete;
 };
 
 class Network;
@@ -146,16 +158,15 @@ public:
     int onQuery(Node &, TxPtr &);
     void avalancheLoop();
     std::vector<TxPtr> parentSelection();
+    bool isAccepted(const TxPtr &);
     double fractionAccepted();
     void dumpDag(const std::string &);
-
     int node_id;
 
-    //private:
+private:
     TxSet parentSet(const TxPtr &);
     bool isPrefered(const TxPtr &);
     bool isStronglyPrefered(const TxPtr &);
-    bool isAccepted(const TxPtr &);
 
     Parameters params;
     Network *network;
