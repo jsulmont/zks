@@ -19,32 +19,48 @@ TxPtr Node::onGenerateTx(int data)
     return t;
 }
 
-void Node::onReceiveTx(Node &sender, TxPtr &tx)
-{
-    auto it = transactions.find(tx->id);
-    if (it != transactions.end())
-        return;
-    tx->chit = 0;
-    tx->confidence = 0;
-    for (auto &it : tx->parents)
-        if (transactions.find(it) == transactions.end())
-        {
-            auto t = sender.onSendTx(it);
-            onReceiveTx(sender, t); // recursive
-        }
-    auto c = conflicts.find(tx->data);
-    if (c != conflicts.end())
-        c->second.size++;
-    else
-        conflicts.insert(make_pair(tx->data, ConflictSet{tx, tx, 0, 1}));
-    transactions.insert(make_pair(tx->id, tx));
-}
-
+// onSendTx is an artefact of our simulation
+// environment: it is called by a node when it first
+// learns from a Tx (e.g., as p)
 TxPtr Node::onSendTx(UUID &id)
 {
     auto it = transactions.find(id);
     assert(it != transactions.end());
     return make_shared<Tx>(*it->second);
+}
+
+// lines 5.8 to 5.14
+//
+void Node::onReceiveTx(Node &sender, TxPtr &tx)
+{
+    // line 5.9: if T ∉ T then
+    if (transactions.find(tx->id) == transactions.end())
+    {
+        // new transaction:
+        tx->chit = 0;
+        tx->confidence = 0;
+
+        // [SIMUL]
+        // make sure we know every transactions in tx's ancestors.
+        // TODO: check optimization section in paper.
+        for (auto &it : tx->parents)
+            if (transactions.find(it) == transactions.end())
+            {
+                // simulate the network; this will
+                // allocate a new transaction this Node's
+                // transaction space
+                auto t = sender.onSendTx(it);
+                onReceiveTx(sender, t); // recursive
+            }
+
+        auto c = conflicts.find(tx->data);
+        if (c != conflicts.end())
+            c->second.size++;
+        else
+            conflicts.insert(make_pair(tx->data, ConflictSet{tx, tx, 0, 1}));
+
+        transactions.insert(make_pair(tx->id, tx));
+    }
 }
 
 int Node::onQuery(Node &sender, TxPtr &tx)
@@ -53,55 +69,17 @@ int Node::onQuery(Node &sender, TxPtr &tx)
     return isStronglyPrefered(tx) ? 1 : 0;
 }
 
-string dump_nodes(const string &what, const vector<shared_ptr<Node>> &nodes)
-{
-    ostringstream ss;
-    ss << what << "= [";
-    for_each(nodes.begin(), nodes.end(), [&](auto &it) { ss << it->node_id << " ,"; });
-    ss << "]";
-    return ss.str();
-}
-
-string dump_uids(const string &name, const set<UUID> &uuids)
-{
-    ostringstream ss;
-    ss << name << "={";
-    for_each(uuids.begin(), uuids.end(),
-             [&](auto &it) { ss << boost::uuids::to_string(it).substr(0, 5) << ","; });
-    ss << "}";
-    return ss.str();
-}
-
-string dump_txs(const tsl::ordered_map<UUID, TxPtr, boost::hash<UUID>> &txs)
-{
-    //TODO: remove
-    ostringstream ss;
-    ss << "transactions={";
-    for_each(txs.begin(), txs.end(),
-             [&](auto &it) { ss << it.second->strid << ","; });
-    ss << "}";
-    return ss.str();
-}
-
-string dump_txset(const TxSet &txs)
-{
-    ostringstream ss;
-    ss << "{";
-    for_each(txs.begin(), txs.end(),
-             [&](auto &it) { ss << "data=" << it->data << ","; });
-    ss << "}";
-    return ss.str();
-}
 void Node::avalancheLoop()
 {
     for (auto it = transactions.begin(); it != transactions.end(); ++it)
     {
         auto &T = it.value();
-        // line 4.3:  find T that satisfies T ∈ T ∧ T ∈/ Q
+
+        // line 4.3:  find t that satisfies t ∈ T ∧ t ∉ Q
         if (queried.find(T->id) != queried.end())
             continue;
 
-        // line 4.4:  K := sample(N \u, k)
+        // line 4.4:  K := sample(N\u, k)
         vector<shared_ptr<Node>> K;
         {
             auto n = network->nodes;
@@ -128,7 +106,7 @@ void Node::avalancheLoop()
             // line 4.9:  for T′∈ T: T′←∗ T  do
             for (auto Tp : parentSet(T))
             {
-                Tp->confidence++;
+                Tp->confidence++; // missing from figure 4.
                 auto cs = conflicts.find(Tp->data);
                 assert(cs != conflicts.end());
 
@@ -175,14 +153,14 @@ TxSet Node::parentSet(const TxPtr &tx)
 
 bool Node::isPrefered(const TxPtr &tx)
 {
-    if (auto it = conflicts.find(tx->data); it != conflicts.end())
-        return it->second.pref == tx;
-    else
-        return false;
+    auto c = conflicts.find(tx->data);
+    assert(c != conflicts.end());
+    return c->second.pref == tx;
 }
 
 bool Node::isStronglyPrefered(const TxPtr &tx)
 {
+    // line 6.4: return ∀T′ ∈ T ,T′ ←∗ T : isPreferred(T′)
     if (auto pset = parentSet(tx); !pset.empty())
         for (auto p = pset.begin(); p != pset.end(); ++p)
             if (!isPrefered(*p))
@@ -196,9 +174,9 @@ bool Node::isAccepted(const TxPtr &tx)
         return true;
     if (queried.find(tx->id) == queried.end())
         return false;
-    auto it{conflicts.find(tx->data)};
-    assert(it != conflicts.end());
-    auto cs{it->second};
+    auto c{conflicts.find(tx->data)};
+    assert(c != conflicts.end());
+    auto cs{c->second};
     auto parents_accepted{
         [tx, this]() {
             for (auto it : tx->parents)
@@ -214,6 +192,8 @@ bool Node::isAccepted(const TxPtr &tx)
     return rc;
 }
 
+// TODO: check it is the right strategy
+// figure 19
 vector<TxPtr> Node::parentSelection()
 {
     // Avalanche paper section IV.2: Parent Selection
@@ -231,11 +211,9 @@ vector<TxPtr> Node::parentSelection()
                 E1.push_back(T);
         }
 
-    //         val parents = eps1.flatMap { parentSet(it) }.toSet().filterNot { eps1.contains(it) }
     vector<TxPtr> parents;
     for (auto &it : E1)
         for (auto &jt : parentSet(it))
-            //if (E1.find(jt) == E1.end())
             if (find(E1.begin(), E1.end(), jt) == E1.end())
                 parents.push_back(jt);
 
